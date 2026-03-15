@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tilley Time 💕</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <header>
+    <h1>Tilley Time</h1>
+    <p>Our sweet girl's favorite moments</p>
+  </header>
+
+  <section class="controls">
+    <label for="photo-upload" class="upload-btn">📸 Add Photos</label>
+    <input type="file" id="photo-upload" accept="image/*" multiple hidden/>
+    
+    <input type="text" id="search" placeholder="Search photos..." oninput="filterPhotos()"/>
+  </section>
+
+  <div id="gallery" class="gallery"></div>
+
+  <!-- Lightbox -->
+  <div id="lightbox" class="lightbox hidden">
+    <span class="close" onclick="closeLightbox()">×</span>
+    <img id="lightbox-img" src="" alt="Full photo"/>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
