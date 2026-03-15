@@ -10,3 +10,17 @@ spec:
     image: nginx:alpine
     ports:
     - containerPort: 80
+    volumeMounts:
+    - name: tilley-content
+      mountPath: /usr/share/nginx/html/index.html
+      subPath: index.html
+    - name: tilley-content
+      mountPath: /usr/share/nginx/html/style.css
+      subPath: style.css
+    - name: tilley-content
+      mountPath: /usr/share/nginx/html/script.js
+      subPath: script.js
+  volumes:
+  - name: tilley-content
+    configMap:
+      name: tilley-web-files
