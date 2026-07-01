@@ -19,22 +19,28 @@ Questions to ask:
 
 ## Step 2 — Structured process audit
 
-Walk the business (in person or via screen-share) through each functional
-area below. Rate current maturity 1-5 (1 = fully manual/ad hoc, 5 = fully
-automated with monitoring) and capture specific pain points.
+Walk the business (in person or via screen-share) through each **business
+vertical** defined in `05-business-vertical-audit-framework.md` — Sales,
+Marketing, Operations/Service Delivery, Accounting & Finance, Manufacturing/
+Production (where applicable), and any expandable verticals that apply (HR,
+Customer Service, IT & Data, Compliance, R&D, E-commerce). That document is
+the master taxonomy; use its per-vertical audit questions and confirm first
+which verticals actually exist in this business before running through them.
 
-| Area | What to look for | Maturity (1-5) |
-|---|---|---|
-| Lead intake & sales | How inquiries arrive (phone, form, DM, walk-in); response time; whether leads are logged anywhere | |
-| Scheduling / booking | Manual back-and-forth vs. self-serve booking; no-show rate; reminder process | |
-| Customer communication | Consistency of follow-up; use of templates/sequences; channels used | |
-| Fulfillment / operations | Handoffs between booking and delivery of service/event; checklists vs. memory | |
-| Billing / invoicing / collections | Time from service to invoice to payment; manual reminders | |
-| Reviews / reputation | Whether reviews are requested systematically; response time to reviews | |
-| Reporting / data | Whether the owner can see pipeline, revenue, and utilization without manually pulling it together | |
-| Compliance / documentation | Contracts, intake forms, e-signatures — manual or automated | |
+Rate each applicable vertical's current maturity 1-5 (1 = fully manual/ad
+hoc, 5 = fully automated with monitoring) and capture specific pain points,
+using this summary table to track scores across the audit:
 
-For each area scored 3 or below, capture:
+| Vertical | Applies? (Y/N) | Maturity (1-5) | Key pain point(s) |
+|---|---|---|---|
+| Sales | | | |
+| Marketing | | | |
+| Operations / Service Delivery | | | |
+| Accounting & Finance | | | |
+| Manufacturing / Production | | | |
+| (expandable — HR, Customer Service, IT & Data, Compliance, etc.) | | | |
+
+For each vertical scored 3 or below, capture:
 - The specific pain point in the owner's own words.
 - An estimate of hours/week spent on the manual version.
 - An estimate of revenue at risk (missed leads, late payments, no-shows).
@@ -54,7 +60,8 @@ automation once the client has adopted the basics.
 
 Structure the written report as:
 
-1. **Current state summary** — one paragraph per functional area.
+1. **Current state summary** — one paragraph per applicable business
+   vertical.
 2. **Scorecard** — the maturity table above, filled in.
 3. **Top 3-5 opportunities** — ranked by impact/effort, each with an estimated
    hours-saved or revenue-protected figure.

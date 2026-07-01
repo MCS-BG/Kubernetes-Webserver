@@ -10,18 +10,27 @@ Lakeway, Spicewood) and Dripping Springs/Driftwood.
    target: geography, chamber-of-commerce prospecting sources, priority
    industry verticals, and named examples found through research.
 2. [`02-company-operating-system.md`](02-company-operating-system.md) — the
-   operating system for running the consultancy itself: vision, people,
-   data/scorecard, process, and traction (rocks/issues).
+   Company Operating System: vision, people, data/scorecard, process, and
+   traction (rocks/issues). Dual-purpose — how the consultancy itself runs,
+   and a client-facing deliverable built during every engagement.
 3. [`03-process-audit-playbook.md`](03-process-audit-playbook.md) — the
    client-facing methodology for auditing a prospect's business processes
-   and quantifying automation opportunity.
+   and quantifying automation opportunity, organized by business vertical.
 4. [`04-automation-strategy-roadmap.md`](04-automation-strategy-roadmap.md) —
    the phased automation roadmap (quick wins → core systems → advanced
    agentic automation) with cross-industry and vertical-specific plays.
+5. [`05-business-vertical-audit-framework.md`](05-business-vertical-audit-framework.md)
+   — the strategic taxonomy of business functions (Sales, Marketing,
+   Operations, Accounting & Finance, Manufacturing/Production, and
+   expandable verticals like HR, Customer Service, IT & Data, Compliance)
+   used to structure every audit, regardless of industry.
 
 ## Suggested reading order
 
-Start with the market research to pick the first vertical to pursue, use the
-Company OS to set up how the business itself will run, then use the audit
-playbook on the first prospect and turn the findings into a plan using the
-roadmap.
+Start with the market research to pick the first vertical to pursue, review
+the business vertical framework (Doc 05) to know what to look for in any
+audit, use the Company OS to set up how the consultancy itself will run,
+then use the audit playbook on the first prospect — applying the vertical
+framework — and turn the findings into a plan using the roadmap. The filled-in
+audit becomes the client's own Company OS (see "Delivering the COS to
+clients" in Doc 02).

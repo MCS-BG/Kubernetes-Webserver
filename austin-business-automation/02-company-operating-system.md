@@ -1,9 +1,15 @@
 # Company Operating System (COS)
 
-An EOS/Rockefeller-Habits-style operating system for running the AI-automation
-consultancy itself — vision, people, data, process, and traction — sized for a
-small team (or solo founder) targeting the West Austin / Dripping Springs
-market described in `01-target-market-research.md`.
+An EOS/Rockefeller-Habits-style operating system — vision, people, data,
+process, and traction — with two uses:
+
+1. **Internal:** how the AI-automation consultancy itself runs (the version
+   below), sized for a small team or solo founder targeting the West Austin /
+   Dripping Springs market described in `01-target-market-research.md`.
+2. **Client-facing:** the same five-part skeleton is also a deliverable you
+   build *with* every client. See "Delivering the COS to clients" at the end
+   of this document — the audit (Doc 03) and vertical framework (Doc 05)
+   exist largely to fill in a client's own Process and Data sections.
 
 ## 1. Vision
 
@@ -102,3 +108,32 @@ person's memory.
   → next actions. Keep it under 60-90 minutes.
 - Maintain a running issues list (blockers, ambiguous scope, tooling gaps)
   and solve the top issue each week rather than letting it accumulate.
+
+## Delivering the COS to clients
+
+The COS isn't only an internal tool — it's a productized part of the
+engagement. After the process audit (Doc 03), build the client a one-page
+Company Operating System of their own, using the same five components, so
+the audit turns into an operating habit rather than a one-time report:
+
+1. **Vision** — capture the client's core focus, niche, and 1-year plan in
+   their own words during the discovery call; this is usually implicit and
+   has never been written down.
+2. **People** — a simple accountability chart of who owns each business
+   vertical from `05-business-vertical-audit-framework.md` (Sales, Marketing,
+   Operations, Accounting, Manufacturing if applicable, etc.) — even a
+   3-person team benefits from knowing who owns what.
+3. **Data** — a client-specific weekly scorecard, drawn directly from the
+   metrics surfaced during the audit (e.g., response time, no-show rate,
+   days-to-payment, review volume) — the same numbers used to justify the
+   automation ROI become the client's ongoing dashboard.
+4. **Process** — the client's own core processes per vertical, documented as
+   the audit and implementation proceed; this is the direct output of Doc 03
+   and Doc 05 applied to their business.
+5. **Traction** — help the client set their first 2-3 quarterly rocks (often
+   simply "adopt the new intake process," "get review requests above X%
+   response rate") and suggest a short weekly pulse meeting cadence.
+
+Handing over a filled-in COS — not just an automation build — is what turns a
+one-time project into a retainer: the client now has a reason to keep meeting
+with you to review the scorecard and adjust the rocks each quarter.
