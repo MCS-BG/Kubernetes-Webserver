@@ -30,13 +30,19 @@ Lakeway, Spicewood) and Dripping Springs/Driftwood.
    a consultancy-specific extension layer (Client, Engagement, Audit,
    Finding, Automation Opportunity, Company OS, ...). The reference to update
    first whenever new vocabulary is needed anywhere else in this folder.
+7. [`07-single-workflow-pilot.md`](07-single-workflow-pilot.md) — the actual
+   starting point for a brand-new prospect: one business, one workflow
+   (inquiry/lead response speed), one automation, with a worked example, a
+   one-page client deliverable, and the readiness signals that tell you when
+   to expand into the full audit/ontology/Company OS engagement.
 
 ## Suggested reading order
 
-Start with the market research to pick the first vertical to pursue, review
-the business vertical framework (Doc 05) — and the ontology (Doc 06) that
-formalizes it — to know what to look for in any audit, use the Company OS to
-set up how the consultancy itself will run, then use the audit playbook on
-the first prospect — applying the vertical framework — and turn the findings
-into a plan using the roadmap. The filled-in audit becomes the client's own
-Company OS (see "Delivering the COS to clients" in Doc 02).
+For a first-time prospect, start at the pilot playbook (Doc 07) — it's
+deliberately smaller than everything else here. Use Doc 01 to pick which
+business to approach, run the Doc 07 pilot, and only if the readiness
+signals show up, move to the full engagement: the vertical framework (Doc
+05) and the ontology (Doc 06) that formalizes it to know what to look for,
+the audit playbook (Doc 03) to run it, the roadmap (Doc 04) to sequence what
+comes next, and the Company OS (Doc 02) to hand the client an ongoing
+operating rhythm rather than a one-time report.
