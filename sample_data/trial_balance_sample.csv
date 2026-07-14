@@ -1,0 +1,7 @@
+account_code,account_name,debit,credit
+1000,Cash,15000.00,60350.50
+4000,Revenue,0,15000.00
+5000,Cost of Goods Sold,4200.50,0
+6100,Facilities Expense,1225.00,0
+6200,Software Expense,950.00,0
+1300,Intercompany Receivable,54000.00,0

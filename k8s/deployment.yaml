@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finance-close-platform
+  labels:
+    app: finance-close-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: finance-close-platform
+  template:
+    metadata:
+      labels:
+        app: finance-close-platform
+    spec:
+      containers:
+        - name: finance-close-platform
+          image: finance-close-platform:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: finance-close-platform-config
+            - secretRef:
+                name: finance-close-platform-secrets
+                optional: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"

@@ -1,0 +1,11 @@
+date,amount,currency,account_code,account_name,description,reference
+2026-06-30,15000.00,USD,1000,Cash,Acme Corp Customer Payment,INV-1042
+2026-06-30,-15000.00,USD,4000,Revenue,Acme Corp Customer Payment,INV-1042
+2026-06-29,-4200.50,USD,1000,Cash,Vendor Supplies Co,PO-889
+2026-06-29,4200.50,USD,5000,Cost of Goods Sold,Vendor Supplies Co,PO-889
+2026-06-28,-1200.00,USD,1000,Cash,Office Lease June,LEASE-JUN
+2026-06-28,1200.00,USD,6100,Facilities Expense,Office Lease June,LEASE-JUN
+2026-06-20,-950.00,USD,1000,Cash,Annual SaaS renewal - no bank match yet,SUB-330
+2026-06-20,950.00,USD,6200,Software Expense,Annual SaaS renewal - no bank match yet,SUB-330
+2026-06-15,54000.00,USD,1300,Intercompany Receivable,EU Subsidiary Intercompany Xfer,ICO-204
+2026-06-15,-54000.00,USD,1000,Cash,EU Subsidiary Intercompany Xfer,ICO-204

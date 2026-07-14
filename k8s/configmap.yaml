@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: finance-close-platform-config
+data:
+  MATCH_DATE_WINDOW_DAYS: "3"
+  MATCH_AMOUNT_TOLERANCE: "0.01"
+  FUZZY_DESCRIPTION_THRESHOLD: "0.6"
+  TIE_OUT_TOLERANCE: "0.01"
+  FX_PROVIDER: "frankfurter"
+  FX_MISMATCH_TOLERANCE_BPS: "50"
+  BASE_CURRENCY: "USD"
