@@ -195,6 +195,11 @@ front of the same engine -- no new business logic, just tools wired to it
 a trial balance, search an entity's reference docs, and record feedback on
 an exception.
 
+**Want to see it running end to end without any curl commands?**
+`/app/demo.html` seeds a demo entity from this repo's `sample_data/` on
+load and renders the reconciliation summary, trial balance tie-out,
+exceptions, and a live P&L side by side with this same chat widget.
+
 Requires `ANTHROPIC_API_KEY` (or an `ant auth login` profile) in the
 environment -- without it, `/chat` returns a clear "not configured" error
 rather than crashing. Configuration, tuned for a *deterministic business

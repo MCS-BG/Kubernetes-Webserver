@@ -18,6 +18,12 @@ uvicorn app.main:app --reload
 - API + interactive docs: `http://127.0.0.1:8000/docs`
 - Health check: `curl http://127.0.0.1:8000/health` -> `{"status":"ok"}`
 - Chat widget: `http://127.0.0.1:8000/app/`
+- **Demo dashboard: `http://127.0.0.1:8000/app/demo.html`** -- the fastest
+  way to see the whole platform at once. Loads automatically, no curl
+  commands required: seeds a demo entity from this repo's own
+  `sample_data/`, then shows the reconciliation summary, trial balance
+  tie-out, exceptions, and a live P&L (Sumly) side by side with the chat
+  agent (Ledge + Sumly). See [Step 8](08-chat-agent-and-widget.md).
 
 There's no database to provision and nothing else to start -- persistence
 is in-memory by design for this stage (see README -> Roadmap). Restarting
@@ -52,7 +58,7 @@ Set the ones relevant to what you're doing.
 pytest tests/ -v
 ```
 
-66 tests should pass. If they don't, something in your environment
+69 tests should pass. If they don't, something in your environment
 differs from what this was built against (Python 3.11, the pinned
 versions in `requirements.txt`) -- fix that before proceeding, since every
 later step assumes a working install.

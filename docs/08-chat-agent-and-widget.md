@@ -78,6 +78,21 @@ API; the mic button hides itself in browsers that don't support it, text
 input always works). Same-origin by default, so no configuration is
 needed to run it locally.
 
+## The demo dashboard
+
+`http://127.0.0.1:8000/app/demo.html` (`web/demo.html`) -- a fuller
+picture than the chat widget alone: on load it calls `POST /demo/seed`
+(demo-only, not part of the client-facing API), which creates a demo
+entity, classifies its chart of accounts, uploads this repo's own
+`sample_data/` files, and runs a reconciliation -- then renders the
+reconciliation summary, trial balance tie-out, exceptions, and a live P&L
+(Sumly) as cards, with the same chat widget embedded below for asking
+follow-up questions conversationally. "Reload demo data" re-runs the
+reconciliation on the same seeded source (so it stays deterministic and
+doesn't pile up duplicate entities on repeat loads) -- useful for showing
+that a learned suppression from Step 5 actually reduces the flag count on
+a subsequent run.
+
 If the widget is deployed separately from the backend (e.g. widget on
 Azure Static Web Apps, backend on Azure Container Apps -- see
 [Step 10](10-deployment.md)), two things need to agree:

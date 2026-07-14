@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.api.schemas import ChartOfAccountsEntryRequest, FeedbackRequest, ReconciliationRequest
-from app.coa import chart_of_accounts
+from app.coa import AccountType, chart_of_accounts
 from app.entities import registry as entity_registry
 from app.fx import get_fx_provider
 from app.ingestion.csv_excel import CSVExcelAdapter
@@ -22,6 +22,26 @@ from app.skills import skill_store
 from app.store import store
 
 router = APIRouter()
+
+# Classification for this repo's own sample_data/ files, used only by the
+# /demo/seed endpoint below -- intentionally leaves 1300 (Intercompany
+# Receivable) and 6200 (Software Expense) unclassified so the demo dashboard
+# has something real to show in "unclassified accounts", not a contrived gap.
+_DEMO_CHART_OF_ACCOUNTS = [
+    ("1000", "Cash", AccountType.ASSET),
+    ("4000", "Revenue", AccountType.REVENUE),
+    ("5000", "Cost of Goods Sold", AccountType.COGS),
+    ("6100", "Facilities Expense", AccountType.OPERATING_EXPENSE),
+]
+_DEMO_PERIOD_START = date(2026, 6, 1)
+_DEMO_PERIOD_END = date(2026, 6, 30)
+
+# Seeded once per process (in-memory, like everything else in this MVP): the
+# entity and uploaded source are created on first call and reused after that,
+# so repeated demo loads don't pile up duplicate entities or double-count GL
+# activity in the P&L. Re-running reconciliation on the same source each call
+# is harmless and deterministic -- it's what demonstrates "run it any time."
+_demo_cache: dict = {}
 
 
 @router.get("/health")
@@ -340,4 +360,72 @@ def get_trial_balance(reconciliation_id: str):
             }
             for l in lines
         ]
+    }
+
+
+@router.post("/demo/seed")
+def seed_demo():
+    """One-call bootstrap for the demo dashboard (web/demo.html): creates a
+    demo entity, classifies its chart of accounts, uploads this repo's own
+    sample_data/ files, and runs a reconciliation -- returning every id the
+    dashboard needs to then call the same read endpoints everything else in
+    this app uses (exceptions, trial-balance, profit-and-loss). Not part of
+    the real client-facing API surface; it exists so a demo has real data to
+    show without anyone typing curl commands first.
+    """
+    if "entity_id" not in _demo_cache:
+        entity = entity_registry.add(
+            name="Acme Ops LLC (Demo)",
+            base_currency="USD",
+            description="Seeded automatically for the LedgeOS demo dashboard.",
+        )
+        for account_code, account_name, account_type in _DEMO_CHART_OF_ACCOUNTS:
+            chart_of_accounts.set_account(entity.id, account_code, account_name, account_type)
+
+        sample_dir = Path(__file__).resolve().parents[2] / "sample_data"
+        adapter = CSVExcelAdapter(
+            bank_file=sample_dir / "bank_statement_sample.csv",
+            gl_file=sample_dir / "gl_export_sample.csv",
+            trial_balance_file=sample_dir / "trial_balance_sample.csv",
+            default_currency="USD",
+        )
+        source_id = store.add_source(
+            bank=adapter.fetch_bank_transactions(),
+            gl=adapter.fetch_gl_entries(),
+            trial_balance=adapter.fetch_trial_balance(),
+            entity_id=entity.id,
+        )
+        _demo_cache["entity_id"] = entity.id
+        _demo_cache["entity_name"] = entity.name
+        _demo_cache["source_id"] = source_id
+
+    source = store.sources[_demo_cache["source_id"]]
+    result = match_transactions(source.bank_transactions, source.gl_entries, gl_account_codes=["1000"])
+    tie_out_lines, tb_flags = tie_out(source.gl_entries, source.trial_balance)
+    result.flags.extend(tb_flags)
+    result.flags, suppressed_count = skill_store.apply_suppression(result.flags, _demo_cache["entity_id"])
+
+    store.results[result.id] = result
+    store.tie_outs[result.id] = tie_out_lines
+    store.result_entity[result.id] = _demo_cache["entity_id"]
+    store.result_actor[result.id] = "demo"
+
+    audit_log.record(
+        actor="demo",
+        action="demo_seeded",
+        entity_id=_demo_cache["entity_id"],
+        details={"source_id": _demo_cache["source_id"], "reconciliation_id": result.id},
+    )
+
+    summary = result.summary()
+    summary["suppressed_by_learned_patterns"] = suppressed_count
+
+    return {
+        "entity_id": _demo_cache["entity_id"],
+        "entity_name": _demo_cache["entity_name"],
+        "source_id": _demo_cache["source_id"],
+        "reconciliation_id": result.id,
+        "summary": summary,
+        "period_start": _DEMO_PERIOD_START.isoformat(),
+        "period_end": _DEMO_PERIOD_END.isoformat(),
     }
