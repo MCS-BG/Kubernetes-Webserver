@@ -21,8 +21,12 @@ minutes of reviewing exceptions instead.
 4. **Flags** currency mismatches: for multi-currency entries, is the FX
    rate that was actually booked consistent with an independent reference
    rate (OANDA, ECB/Frankfurter, or whichever provider is configured)?
-5. **Surfaces** every exception through a small HTTP API, ready to sit
-   behind a dashboard or a chat interface.
+5. **Surfaces** every exception through a small HTTP API and a headless
+   chat agent -- ask "run the June close for Acme Ops LLC" by typing or
+   speaking, no dashboard required.
+6. **Learns from review**: when a human marks an exception as a known
+   false positive, that decision is recorded and suppresses the same
+   recognized noise on future runs for that entity.
 
 ## Architecture
 
@@ -47,17 +51,42 @@ app/
     matcher.py             Bank-to-GL matching engine
     trial_balance.py       Trial balance tie-out
     flags.py                FX-rate-mismatch detection
+  entities.py                Legal entity registry (which entity a report is against)
+  skills/
+    store.py                 The "evolving skill file": human feedback on a
+                              flag becomes a KnownExceptionPattern, applied
+                              to suppress the same reviewed noise later
+  rag/
+    store.py                 Per-entity document retrieval (TF-IDF, no
+                              external deps) grounding chat answers in a
+                              client's own policies/notes
+  chat/
+    tools.py                  The tools the chat agent can call (thin
+                              wrappers over the engine/entity/RAG/skill code)
+    agent.py                  The tool-use loop against the Claude API
+    router.py                 POST /chat
+  security/
+    audit.py                  Append-only audit log (who did what, when)
+    auth.py                   Minimal role-based access + segregation of duties
+    pii.py                     Masking utilities applied before audit logging
   api/
     routes.py               FastAPI endpoints
     schemas.py               Request/response models
   store.py                  In-memory persistence (MVP only, see below)
   main.py                    FastAPI app entrypoint
-tests/                       pytest suite for the matcher, tie-out, FX
-                              flagging, and the API end to end
+web/
+  index.html                  Minimal chat widget (type or speak) served at /app
+tests/                       pytest suite -- matcher, tie-out, FX flagging,
+                             entities, skills/feedback, RAG, chat tools,
+                             security/segregation-of-duties, and the API
+                             end to end
 sample_data/                 A worked example: a bank statement, a GL
                               export, and a trial balance with one planted
                               exception, for demos and onboarding
 k8s/                         Deployment manifests for this service
+COMPLIANCE.md                What's actually implemented vs. out of scope
+                              for GAAP/SOX/PII/HIPAA/securities -- read this
+                              before telling a client anything about compliance
 ```
 
 ### Why a pluggable FX provider
@@ -129,6 +158,52 @@ counterpart, one EUR bank transfer that only has a converted-USD GL leg
 (demonstrating the cross-currency limitation above), and a $25 planted
 variance on Facilities Expense so the tie-out flag has something to catch.
 
+## Chat agent
+
+`POST /chat` (and the widget at `/app/`) puts a conversational layer in
+front of the same engine -- no new business logic, just tools wired to it
+(`app/chat/tools.py`): list entities, run a close, list exceptions, check
+a trial balance, search an entity's reference docs, and record feedback on
+an exception.
+
+Requires `ANTHROPIC_API_KEY` (or an `ant auth login` profile) in the
+environment -- without it, `/chat` returns a clear "not configured" error
+rather than crashing. Configuration, tuned for a *deterministic business
+reporting* agent rather than a creative one:
+
+| Env var | Default | Why |
+|---|---|---|
+| `CHAT_MODEL` | `claude-opus-4-8` | `claude-sonnet-5` is a reasonable cheaper choice for this well-scoped tool-calling task |
+| `CHAT_MAX_TOKENS` | `4096` | Replies are short business answers, not long-form generation |
+| `CHAT_EFFORT` | `medium` | Balances quality/cost for routing + reporting, not deep reasoning |
+| `CHAT_THINKING` | unset | Set to `adaptive` to turn on extended thinking for harder queries |
+
+Sampling parameters (temperature/top_p/top_k) aren't exposed: Opus 4.8
+rejects non-default values outright, and determinism here comes from tight
+tool schemas and a narrow system prompt, not from sampling.
+
+### Multi-entity + the "evolving skill" feedback loop
+
+Create an entity, tag uploaded sources to it, then ask the chat agent
+about it by name:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/entities?name=Acme+Ops+LLC&base_currency=USD"
+curl -X POST http://127.0.0.1:8000/sources/upload -F entity_id=<id> -F bank_file=@... -F gl_file=@...
+
+curl -X POST http://127.0.0.1:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "demo", "message": "run the close for Acme Ops LLC"}'
+```
+
+When a reviewer confirms an exception is a known, recurring non-issue
+(via chat, or `POST /feedback` directly), that decision is recorded per
+entity and applied automatically on future runs -- see
+`app/skills/store.py` and `skills_data/<entity_id>.md` (written at
+runtime) for the human-readable record of what's been learned. This is a
+deliberately narrow mechanism: patterns are only ever created from an
+explicit human review, never invented by the model.
+
 ## Tests
 
 ```bash
@@ -145,6 +220,21 @@ kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
 ```
 
+## Security & compliance
+
+`app/security/` implements an append-only audit log, PII masking applied
+before anything is logged, and role-based access control with a real,
+tested segregation-of-duties rule (a reviewer can't approve their own
+reconciliation). See **[COMPLIANCE.md](./COMPLIANCE.md)** for exactly what
+this does and doesn't claim -- in particular, HIPAA and securities-specific
+controls are explicitly out of scope pending a confirmed client need,
+rather than built speculatively or claimed without basis.
+
+Set `AUTH_TOKENS` (e.g. `tok_alice:alice:preparer,tok_bob:bob:reviewer`) to
+turn on role enforcement; unset, every request runs as an
+unauthenticated/admin identity so local dev and the test suite work
+without setup.
+
 ## Roadmap / not yet built
 
 - **Persistent storage.** `app/store.py` is in-memory by design for this
@@ -159,6 +249,8 @@ kubectl apply -f k8s/service.yaml
   rule, build the live implementation when a specific client needs it,
   not speculatively.
 - **Cross-currency matching**, described above.
-- **Conversational/chat interface, RAG, multi-entity routing, and a
-  compliance posture (GAAP/SOX/PII and beyond)** are being scoped as a
-  distinct next phase on top of this engine.
+- **RAG corpus is currently seeded manually** (`app/rag/store.py`) -- no
+  endpoint yet to upload a client's policy documents; add one when a real
+  client's documents need indexing.
+- **Real SSO/OIDC** in place of the bearer-token-to-role mapping in
+  `app/security/auth.py`, once this runs somewhere beyond a demo.

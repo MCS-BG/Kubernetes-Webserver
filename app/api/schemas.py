@@ -3,6 +3,18 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
+class FeedbackRequest(BaseModel):
+    reconciliation_id: str
+    flag_index: int
+    match_text: str
+    note: str
+
+
+class ChatRequest(BaseModel):
+    session_id: str
+    message: str
+
+
 class ReconciliationRequest(BaseModel):
     source_id: str
     date_window_days: int | None = None
