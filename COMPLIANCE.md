@@ -57,31 +57,33 @@ rest once persistent storage (Postgres) replaces the in-memory store;
 a data retention/deletion policy; and a real access-control system in
 place of the token-role mapping above.
 
-## HIPAA -- explicitly out of scope
+## HIPAA -- confirmed out of scope (2026-07-14)
 
-This platform does not implement HIPAA-specific controls (Business
-Associate Agreements, PHI-specific access logging, breach notification
-procedures) because there is no confirmed client relationship involving
-protected health information. Building and claiming HIPAA controls without
-a real PHI-handling requirement would be a false compliance claim -- worse
-than building nothing, since it would create liability without protecting
-anything real.
+Confirmed with the product owner: no current or targeted clients involve
+protected health information. This platform does not implement
+HIPAA-specific controls (Business Associate Agreements, PHI-specific
+access logging, breach notification procedures). Building and claiming
+HIPAA controls without a real PHI-handling requirement would be a false
+compliance claim -- worse than building nothing, since it would create
+liability without protecting anything real.
 
 **If a future client is a healthcare provider and financial data here would
-touch PHI:** treat that as a distinct, legal-review-first workstream, not
-an incremental code change. Flag it before any such client is onboarded.
+touch PHI:** revisit this decision as a distinct, legal-review-first
+workstream, not an incremental code change. Flag it before any such client
+is onboarded.
 
-## Securities regulations -- explicitly out of scope
+## Securities regulations -- confirmed out of scope (2026-07-14)
 
-No securities-specific controls (SEC/FINRA books-and-records rules for
-broker-dealers or investment advisers) are implemented. This platform's
-current scope is bank-to-GL reconciliation and close support for
-SMB/mid-market operating companies -- not regulated securities entities.
+Confirmed with the product owner: no current or targeted clients are
+broker-dealers, investment advisers, or public-company issuers. No
+securities-specific controls (SEC/FINRA books-and-records rules) are
+implemented. This platform's current scope is bank-to-GL reconciliation
+and close support for SMB/mid-market operating companies.
 
 **If the client base expands to public-company issuers, broker-dealers, or
 investment advisers:** the specific regime differs by entity type and
 needs to be scoped with compliance counsel before any claim is made or
-control is built.
+control is built -- revisit this decision at that point.
 
 ## Currency/FX
 
