@@ -9,6 +9,7 @@ from datetime import date
 from decimal import Decimal
 
 from app.chat import tools as chat_tools
+from app.coa import AccountType, chart_of_accounts
 from app.entities import registry as entity_registry
 from app.models import BankTransaction, GLEntry, TrialBalanceLine
 from app.rag import rag_store
@@ -104,3 +105,39 @@ def test_record_exception_feedback_suppresses_future_flags():
     # Re-run reconciliation for the same entity -- the learned pattern should suppress it now
     summary_text_2 = chat_tools.run_reconciliation.func(entity_name="Feedback Co", cash_account_codes="1000")
     assert "Suppressed by previously-learned patterns: 1" in summary_text_2
+
+
+def test_get_profit_and_loss_unknown_entity():
+    result = chat_tools.get_profit_and_loss.func(
+        entity_name="Nope Inc", period_start="2026-06-01", period_end="2026-06-30"
+    )
+    assert "No entity named" in result
+
+
+def test_get_profit_and_loss_bad_dates():
+    entity = _make_entity(name="Date Test Co")
+    result = chat_tools.get_profit_and_loss.func(
+        entity_name="Date Test Co", period_start="not-a-date", period_end="2026-06-30"
+    )
+    assert "ISO dates" in result
+
+
+def test_get_profit_and_loss_end_to_end():
+    entity = _make_entity(name="P&L Chat Co")
+    chart_of_accounts.set_account(entity.id, "4000", "Revenue", AccountType.REVENUE)
+    chart_of_accounts.set_account(entity.id, "6100", "Facilities Expense", AccountType.OPERATING_EXPENSE)
+
+    gl = [
+        GLEntry(date=date(2026, 6, 10), amount=Decimal("-5000.00"), currency="USD", account_code="4000", account_name="Revenue"),
+        GLEntry(date=date(2026, 6, 12), amount=Decimal("1200.00"), currency="USD", account_code="6100", account_name="Facilities Expense"),
+        GLEntry(date=date(2026, 6, 12), amount=Decimal("300.00"), currency="USD", account_code="7777", account_name="Unclassified Thing"),
+    ]
+    store.add_source(bank=[], gl=gl, trial_balance=[], entity_id=entity.id)
+
+    result = chat_tools.get_profit_and_loss.func(
+        entity_name="P&L Chat Co", period_start="2026-06-01", period_end="2026-06-30"
+    )
+    assert "Total Revenue: 5000.00" in result
+    assert "Total Operating Expenses: 1200.00" in result
+    assert "Net Income: 3800.00" in result
+    assert "7777" in result  # unclassified account flagged, not silently dropped

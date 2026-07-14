@@ -53,5 +53,15 @@ class InMemoryStore:
     def sources_for_entity(self, entity_id: str) -> list[SourceData]:
         return [s for s in self.sources.values() if s.entity_id == entity_id]
 
+    def gl_entries_for_entity(self, entity_id: str) -> list[GLEntry]:
+        """All GL activity across every source ever uploaded/synced for this
+        entity -- a period-based report (like a P&L) needs the full ledger
+        for the period, not just the most recently uploaded batch.
+        """
+        entries: list[GLEntry] = []
+        for source in self.sources_for_entity(entity_id):
+            entries.extend(source.gl_entries)
+        return entries
+
 
 store = InMemoryStore()

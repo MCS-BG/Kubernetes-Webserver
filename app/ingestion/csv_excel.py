@@ -43,17 +43,23 @@ DEFAULT_TRIAL_BALANCE_COLUMNS = {
 
 
 def _read_table(path: str | Path) -> pd.DataFrame:
+    """Reads every column as a string. Monetary amounts must never round-trip
+    through pandas' default float64 inference -- that risks genuine
+    floating-point rounding error on financial data, not just a cosmetic
+    loss of trailing zeros (e.g. a value that isn't exactly representable
+    in binary). Decimal conversion happens directly from the original text.
+    """
     path = Path(path)
     if path.suffix.lower() in (".xlsx", ".xls"):
-        return pd.read_excel(path)
-    return pd.read_csv(path)
+        return pd.read_excel(path, dtype=str)
+    return pd.read_csv(path, dtype=str)
 
 
 def _to_decimal(value) -> Decimal:
-    if value is None or value == "":
+    if value is None or (isinstance(value, float) and pd.isna(value)) or str(value).strip() == "":
         return Decimal("0")
     try:
-        return Decimal(str(value))
+        return Decimal(str(value).strip())
     except InvalidOperation:
         return Decimal("0")
 

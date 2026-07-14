@@ -5,13 +5,17 @@ natural language.
 """
 from __future__ import annotations
 
+from datetime import date
+
 import requests
 from anthropic import beta_tool
 
+from app.coa import chart_of_accounts
 from app.entities import registry as entity_registry
 from app.fx import get_fx_provider
 from app.rag import rag_store
 from app.reconciliation import check_fx_rates, match_transactions, tie_out
+from app.reporting import compute_profit_and_loss
 from app.skills import skill_store
 from app.store import store
 
@@ -177,6 +181,69 @@ def record_exception_feedback(
     )
 
 
+@beta_tool
+def get_profit_and_loss(entity_name: str, period_start: str, period_end: str) -> str:
+    """Get a live profit & loss (income statement) for a legal entity over a date range,
+    computed fresh from GL activity -- revenue, COGS, gross profit, operating expenses
+    (itemized), operating income, other income/expense, and net income.
+
+    Args:
+        entity_name: The legal entity to report on, e.g. "Acme Ops LLC".
+        period_start: Start of the period, ISO format, e.g. "2026-06-01".
+        period_end: End of the period, ISO format, e.g. "2026-06-30".
+    """
+    entity = entity_registry.find_by_name(entity_name)
+    if not entity:
+        return f"No entity named '{entity_name}' is configured. Call list_entities to see available entities."
+
+    try:
+        start = date.fromisoformat(period_start)
+        end = date.fromisoformat(period_end)
+    except ValueError:
+        return "period_start and period_end must be ISO dates, e.g. 2026-06-01."
+
+    gl_entries = store.gl_entries_for_entity(entity.id)
+    report = compute_profit_and_loss(gl_entries, chart_of_accounts, entity.id, start, end)
+
+    def _fmt_lines(lines) -> str:
+        if not lines:
+            return "  (none)"
+        return "\n".join(f"  {l.account_name} ({l.account_code}): {l.amount}" for l in lines)
+
+    parts = [
+        f"P&L for {entity.name}, {start.isoformat()} to {end.isoformat()}:",
+        "",
+        "Revenue:",
+        _fmt_lines(report.revenue_lines),
+        f"Total Revenue: {report.total_revenue}",
+        "",
+        "Cost of Goods Sold:",
+        _fmt_lines(report.cogs_lines),
+        f"Total COGS: {report.total_cogs}",
+        f"Gross Profit: {report.gross_profit}",
+        "",
+        "Operating Expenses:",
+        _fmt_lines(report.operating_expense_lines),
+        f"Total Operating Expenses: {report.total_operating_expenses}",
+        f"Operating Income: {report.operating_income}",
+        "",
+        "Other Income:",
+        _fmt_lines(report.other_income_lines),
+        "Other Expense:",
+        _fmt_lines(report.other_expense_lines),
+        "",
+        f"Net Income: {report.net_income}",
+    ]
+    if report.unclassified_account_codes:
+        parts.append("")
+        parts.append(
+            "NOTE -- these accounts had activity in the period but aren't classified in "
+            f"the chart of accounts, so they're excluded from the figures above: "
+            f"{', '.join(report.unclassified_account_codes)}"
+        )
+    return "\n".join(parts)
+
+
 ALL_TOOLS = [
     list_entities,
     run_reconciliation,
@@ -184,4 +251,5 @@ ALL_TOOLS = [
     get_trial_balance_report,
     search_knowledge_base,
     record_exception_feedback,
+    get_profit_and_loss,
 ]

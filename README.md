@@ -27,6 +27,10 @@ minutes of reviewing exceptions instead.
 6. **Learns from review**: when a human marks an exception as a known
    false positive, that decision is recorded and suppresses the same
    recognized noise on future runs for that entity.
+7. **Reports a live profit & loss**: revenue, COGS, gross profit, itemized
+   operating expenses, operating income, other income/expense, and net
+   income -- computed fresh from GL activity for any date range, via API,
+   chat, or a downloadable spreadsheet with real formulas throughout.
 
 ## Architecture
 
@@ -51,6 +55,14 @@ app/
     matcher.py             Bank-to-GL matching engine
     trial_balance.py       Trial balance tie-out
     flags.py                FX-rate-mismatch detection
+  coa.py                     Chart of accounts: classifies each GL account
+                              (revenue/COGS/opex/other income-expense/
+                              asset/liability/equity), per entity
+  reporting/
+    profit_and_loss.py         Live P&L computation from GL activity
+    pl_export.py                 .xlsx export: a GL Data tab + a P&L tab
+                              where every figure is a real SUMIFS/SUM
+                              formula, not a hardcoded number
   entities.py                Legal entity registry (which entity a report is against)
   skills/
     store.py                 The "evolving skill file": human feedback on a
@@ -203,6 +215,45 @@ entity and applied automatically on future runs -- see
 runtime) for the human-readable record of what's been learned. This is a
 deliberately narrow mechanism: patterns are only ever created from an
 explicit human review, never invented by the model.
+
+## Profit & loss
+
+A live income statement, computed from GL activity for any date range --
+not a cached or hand-built report. Requires classifying each GL account
+first (`app/coa.py`): revenue, COGS, operating expense, other income,
+other expense, or a balance-sheet type (asset/liability/equity, excluded
+from the P&L). An account with GL activity but no classification is never
+silently folded into Net Income -- it's listed separately as
+`unclassified_account_codes` until someone classifies it.
+
+```bash
+# Classify accounts once per entity
+curl -X POST http://127.0.0.1:8000/entities/<entity_id>/chart-of-accounts \
+  -H "Content-Type: application/json" \
+  -d '{"account_code": "4000", "account_name": "Revenue", "account_type": "revenue"}'
+
+# Then ask for the P&L any time, for any period
+curl "http://127.0.0.1:8000/entities/<entity_id>/profit-and-loss?period_start=2026-06-01&period_end=2026-06-30"
+
+# Or download it as a live spreadsheet
+curl "http://127.0.0.1:8000/entities/<entity_id>/profit-and-loss/export?period_start=2026-06-01&period_end=2026-06-30" \
+  -o pl.xlsx
+```
+
+Also reachable conversationally: "give me the P&L for Acme Ops LLC for June."
+
+**About the spreadsheet export.** The `.xlsx` has a `GL Data` tab (the
+entity's full ledger) and a `P&L` tab where every line -- account amounts,
+section subtotals, gross profit, operating income, net income -- is a real
+`SUMIFS`/`SUM` formula referencing `GL Data` and two editable period cells
+(`B2`/`B3`), not a pasted number. Change the period cells or re-paste
+updated GL data and the whole report recalculates. This was built as an
+explicit substitute for a proprietary tool's live-data Excel functions
+(DataRails' `DR.GET`, used via their Excel add-in) -- `SUMIFS` is a
+standard, verifiable Excel function that gets the same "live, not
+hardcoded" outcome without guessing at a syntax we can't confirm from
+outside that product. If you hold a DataRails license, this `GL Data` tab
+is exactly the kind of source table their own functions would reference.
 
 ## Tests
 

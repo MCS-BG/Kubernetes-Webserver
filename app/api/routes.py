@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import io
 import shutil
 import tempfile
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 
-from app.api.schemas import FeedbackRequest, ReconciliationRequest
+from app.api.schemas import ChartOfAccountsEntryRequest, FeedbackRequest, ReconciliationRequest
+from app.coa import chart_of_accounts
 from app.entities import registry as entity_registry
 from app.fx import get_fx_provider
 from app.ingestion.csv_excel import CSVExcelAdapter
 from app.reconciliation import check_fx_rates, match_transactions, tie_out
+from app.reporting import build_pl_workbook, compute_profit_and_loss
 from app.security import audit_log, require_role
 from app.skills import skill_store
 from app.store import store
@@ -38,6 +43,95 @@ def list_entities():
 def create_entity(name: str, base_currency: str = "USD", description: str = ""):
     entity = entity_registry.add(name=name, base_currency=base_currency, description=description)
     return {"id": entity.id, "name": entity.name, "base_currency": entity.base_currency}
+
+
+@router.get("/entities/{entity_id}/chart-of-accounts")
+def get_chart_of_accounts(entity_id: str):
+    return {
+        "accounts": [
+            {"account_code": a.account_code, "account_name": a.account_name, "account_type": a.account_type.value}
+            for a in chart_of_accounts.accounts_for(entity_id)
+        ]
+    }
+
+
+@router.post("/entities/{entity_id}/chart-of-accounts")
+def set_chart_of_accounts_entry(
+    entity_id: str,
+    request: ChartOfAccountsEntryRequest,
+    identity: tuple[str, str] = Depends(require_role("preparer")),
+):
+    """Classifies a GL account (revenue/COGS/operating expense/other
+    income/other expense/asset/liability/equity) for this entity. Required
+    before an account's activity can appear in that entity's P&L -- an
+    unclassified account is flagged, never silently included or excluded.
+    """
+    entry = chart_of_accounts.set_account(
+        entity_id=entity_id,
+        account_code=request.account_code,
+        account_name=request.account_name,
+        account_type=request.account_type,
+    )
+    audit_log.record(
+        actor=identity[0],
+        action="chart_of_accounts_updated",
+        entity_id=entity_id,
+        details={"account_code": entry.account_code, "account_type": entry.account_type.value},
+    )
+    return {"account_code": entry.account_code, "account_name": entry.account_name, "account_type": entry.account_type.value}
+
+
+@router.get("/entities/{entity_id}/profit-and-loss")
+def get_profit_and_loss(entity_id: str, period_start: date, period_end: date):
+    if entity_registry.get(entity_id) is None:
+        raise HTTPException(404, f"Unknown entity_id {entity_id}")
+
+    gl_entries = store.gl_entries_for_entity(entity_id)
+    report = compute_profit_and_loss(gl_entries, chart_of_accounts, entity_id, period_start, period_end)
+
+    def _lines(lines):
+        return [{"account_code": l.account_code, "account_name": l.account_name, "amount": str(l.amount)} for l in lines]
+
+    return {
+        "entity_id": entity_id,
+        "period_start": period_start.isoformat(),
+        "period_end": period_end.isoformat(),
+        "revenue": {"lines": _lines(report.revenue_lines), "total": str(report.total_revenue)},
+        "cogs": {"lines": _lines(report.cogs_lines), "total": str(report.total_cogs)},
+        "gross_profit": str(report.gross_profit),
+        "operating_expenses": {"lines": _lines(report.operating_expense_lines), "total": str(report.total_operating_expenses)},
+        "operating_income": str(report.operating_income),
+        "other_income": {"lines": _lines(report.other_income_lines), "total": str(report.total_other_income)},
+        "other_expense": {"lines": _lines(report.other_expense_lines), "total": str(report.total_other_expense)},
+        "net_income": str(report.net_income),
+        "unclassified_account_codes": report.unclassified_account_codes,
+    }
+
+
+@router.get("/entities/{entity_id}/profit-and-loss/export")
+def export_profit_and_loss(entity_id: str, period_start: date, period_end: date):
+    """Downloads a live, formula-driven P&L workbook: a GL Data tab holding
+    this entity's full ledger, and a P&L tab where every figure is a real
+    SUMIFS/SUM formula referencing it -- change the period cells or the
+    underlying data and the report recalculates, no regeneration needed.
+    """
+    entity = entity_registry.get(entity_id)
+    if entity is None:
+        raise HTTPException(404, f"Unknown entity_id {entity_id}")
+
+    gl_entries = store.gl_entries_for_entity(entity_id)
+    workbook = build_pl_workbook(gl_entries, chart_of_accounts, entity_id, entity.name, period_start, period_end)
+
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+
+    filename = f"{entity.name.replace(' ', '_')}_PL_{period_start.isoformat()}_{period_end.isoformat()}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/sources/upload")

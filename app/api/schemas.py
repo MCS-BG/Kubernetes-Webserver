@@ -2,6 +2,14 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
+from app.coa import AccountType
+
+
+class ChartOfAccountsEntryRequest(BaseModel):
+    account_code: str
+    account_name: str
+    account_type: AccountType
+
 
 class FeedbackRequest(BaseModel):
     reconciliation_id: str
