@@ -220,6 +220,15 @@ kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
 ```
 
+**Deploying to Azure instead of a generic k8s cluster:** see
+**[AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md)**. The widget
+(`web/`) and the backend (everything else) deploy separately -- Azure
+Static Web Apps runs static content only, not this app's FastAPI process
+-- via the two workflows in `.github/workflows/`. Set `ALLOWED_ORIGINS`
+(backend) and `web/config.js`'s `API_BASE_URL` (widget) to match each
+other once both are deployed; CORS support for this split is in
+`app/main.py`.
+
 ## Security & compliance
 
 `app/security/` implements an append-only audit log, PII masking applied

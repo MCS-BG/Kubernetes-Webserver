@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Close &amp; Reconciliation Assistant</title>
+<script src="config.js"></script>
 <style>
   :root {
     color-scheme: light dark;
@@ -114,6 +115,7 @@
 
   const sessionId = localStorage.getItem("chat_session_id") || crypto.randomUUID();
   localStorage.setItem("chat_session_id", sessionId);
+  const apiBase = window.API_BASE_URL || "";
 
   function addMessage(role, text) {
     const el = document.createElement("div");
@@ -132,7 +134,7 @@
     const pending = addMessage("pending", "Working...");
 
     try {
-      const resp = await fetch("/chat", {
+      const resp = await fetch(apiBase + "/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, message: text }),
