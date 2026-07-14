@@ -1,11 +1,22 @@
-# Close & Reconciliation Platform
+# LedgeOS
 
-Automated bank-to-GL reconciliation and trial-balance tie-out for Two
-Rivers Advisory. Ingests a bank feed, a general ledger, and a reported
-trial balance (via live SaaS/ERP API or a CSV/Excel export), matches
-transactions across them, and flags exactly which line items don't
-reconcile and why -- so a close that took days of manual matching takes
-minutes of reviewing exceptions instead.
+The headless close & reporting platform for Two Rivers Advisory clients:
+one backend, one chat agent, two named capabilities --
+
+- **Ledge** -- automated bank-to-GL reconciliation and trial-balance
+  tie-out. Ingests a bank feed, a general ledger, and a reported trial
+  balance (via live SaaS/ERP API or a CSV/Excel export), matches
+  transactions across them, and flags exactly which line items don't
+  reconcile and why -- so a close that took days of manual matching takes
+  minutes of reviewing exceptions instead.
+- **Sumly** -- a live profit & loss report, computed fresh from GL
+  activity for any date range, available via API, chat, or a downloadable
+  spreadsheet built on real, verifiable formulas (see [Profit & loss](#profit--loss)
+  below).
+
+Both run through the same headless agent -- there's no separate login or
+API for Sumly, it's a capability LedgeOS exposes once a chart of accounts
+is set up.
 
 **New here?** [`docs/`](docs/README.md) walks through every step end to
 end -- setup, entities, ingestion, reconciliation, exceptions, FX, P&L,
@@ -222,7 +233,7 @@ runtime) for the human-readable record of what's been learned. This is a
 deliberately narrow mechanism: patterns are only ever created from an
 explicit human review, never invented by the model.
 
-## Profit & loss
+## Profit & loss (Sumly)
 
 A live income statement, computed from GL activity for any date range --
 not a cached or hand-built report. Requires classifying each GL account

@@ -9,10 +9,11 @@ from app.api.routes import router
 from app.chat.router import router as chat_router
 
 app = FastAPI(
-    title="Two Rivers Advisory — Close & Reconciliation Platform",
+    title="LedgeOS — Two Rivers Advisory",
     description=(
-        "Automated bank-to-GL reconciliation and trial-balance tie-out. "
-        "Flags exactly which line items don't reconcile and why."
+        "Headless close & reporting platform: Ledge (automated bank-to-GL "
+        "reconciliation and trial-balance tie-out) and Sumly (live P&L "
+        "reporting), both served through the same API and chat agent."
     ),
     version="0.1.0",
 )

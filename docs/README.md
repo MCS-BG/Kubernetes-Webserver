@@ -1,9 +1,11 @@
 # Documentation
 
-Step-by-step guide to the Close & Reconciliation Platform, in the order
-you'd actually use it. Each step is a standalone doc with real, runnable
-commands -- most of them exercised live against a running instance of this
-app while writing this documentation, not invented from reading the code.
+Step-by-step guide to LedgeOS -- the headless close & reporting platform,
+covering both its reconciliation engine (Ledge) and its live P&L reporting
+(Sumly) -- in the order you'd actually use it. Each step is a standalone
+doc with real, runnable commands -- most of them exercised live against a
+running instance of this app while writing this documentation, not
+invented from reading the code.
 
 | Step | Doc | What it covers |
 |---|---|---|
