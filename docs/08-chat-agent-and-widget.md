@@ -1,0 +1,97 @@
+# Step 8: Chat Agent & Web Widget
+
+Every capability in Steps 2-7 is also reachable conversationally -- ask
+for a close, an exception list, or a P&L in plain language instead of
+constructing HTTP calls.
+
+## Requirements
+
+`ANTHROPIC_API_KEY` must be set in the environment (or an `ant auth login`
+profile active). Without it, `/chat` returns a clear error instead of
+crashing:
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "demo", "message": "list entities"}'
+```
+
+```json
+{"detail":"Chat agent is not configured: \"Could not resolve authentication method. Expected one of api_key, auth_token, or credentials to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\""}
+```
+
+(Real output, from running this exact call with no key configured --
+this is the actual failure mode, not a hypothetical one.)
+
+## Talking to it
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"session_id": "demo", "message": "run the close for Acme Ops LLC"}'
+```
+
+```json
+{"reply": "..."}
+```
+
+`session_id` is any string you choose -- conversation history persists
+in-memory per session (`app/chat/agent.py`), so reuse the same ID across
+calls to keep context (e.g. "now show me the exceptions" after a close
+run, without repeating the entity name). Reset a session:
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat/demo/reset
+```
+
+### What the agent can do
+
+Every tool in `app/chat/tools.py` maps directly to an API call from
+earlier steps -- the chat layer adds no new business logic, only natural
+language routing to it:
+
+| Ask it to... | Tool called |
+|---|---|
+| List entities | `list_entities` |
+| Run a close for an entity | `run_reconciliation` |
+| List exceptions from a run | `get_exceptions` |
+| Check a trial balance | `get_trial_balance_report` |
+| Search an entity's policy docs | `search_knowledge_base` |
+| Mark an exception as a known non-issue | `record_exception_feedback` |
+| Get a P&L for a date range | `get_profit_and_loss` |
+
+### Model configuration
+
+See [Step 1](01-setup.md) for the full env var list (`CHAT_MODEL`,
+`CHAT_MAX_TOKENS`, `CHAT_EFFORT`, `CHAT_THINKING`). Defaults are tuned for
+a **deterministic business-reporting agent**, not a creative one: modest
+`max_tokens` (short business answers), no extended thinking unless
+explicitly turned on, and no sampling parameters exposed (Opus 4.8
+rejects non-default `temperature`/`top_p`/`top_k` outright -- determinism
+here comes from tight tool schemas and a narrow system prompt).
+
+## The web widget
+
+`http://127.0.0.1:8000/app/` -- a minimal static page (`web/index.html`):
+type a message, or click the microphone button to speak it (Web Speech
+API; the mic button hides itself in browsers that don't support it, text
+input always works). Same-origin by default, so no configuration is
+needed to run it locally.
+
+If the widget is deployed separately from the backend (e.g. widget on
+Azure Static Web Apps, backend on Azure Container Apps -- see
+[Step 10](10-deployment.md)), two things need to agree:
+
+- `web/config.js`'s `API_BASE_URL` -- where the widget sends requests
+- the backend's `ALLOWED_ORIGINS` env var -- which origins it accepts
+  cross-origin requests from
+
+This was verified end-to-end during development: the widget and backend
+were run on two different local ports with `ALLOWED_ORIGINS` configured,
+driven with a headless browser, and confirmed the cross-origin request
+reached the server cleanly with no CORS-blocked errors (just the expected
+"not configured" response, since no API key was set in that test either).
+
+## Next
+
+[Step 9: Security, Roles & Audit](09-security-roles-audit.md)

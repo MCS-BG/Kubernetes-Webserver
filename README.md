@@ -7,6 +7,12 @@ transactions across them, and flags exactly which line items don't
 reconcile and why -- so a close that took days of manual matching takes
 minutes of reviewing exceptions instead.
 
+**New here?** [`docs/`](docs/README.md) walks through every step end to
+end -- setup, entities, ingestion, reconciliation, exceptions, FX, P&L,
+chat, security, and deployment -- with real commands and real output from
+this repo's own sample data. This README stays the high-level tour; the
+docs folder is the hands-on runbook.
+
 ## What it does
 
 1. **Ingests** bank + GL + trial balance data, either from a one-time
