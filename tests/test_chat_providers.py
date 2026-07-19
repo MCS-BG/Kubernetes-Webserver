@@ -1,10 +1,10 @@
-"""Chat provider selection (CHAT_PROVIDER=anthropic|openai|xai) and the
-OpenAI-compatible provider's hand-rolled tool-call loop -- mocked, no real
-network call to any LLM API (none of the three keys are available in this
-environment). Anthropic's own tool_runner loop is exercised for real, live,
-via tests/test_chat_tools.py's direct .func() calls -- this file covers the
-provider-selection/routing layer added on top of it, and the loop that has
-no SDK-provided equivalent for OpenAI/xAI.
+"""Chat provider selection (CHAT_PROVIDER=anthropic|openai|xai|perplexity)
+and the OpenAI-compatible provider's hand-rolled tool-call loop -- mocked,
+no real network call to any LLM API (none of the four keys are available
+in this environment). Anthropic's own tool_runner loop is exercised for
+real, live, via tests/test_chat_tools.py's direct .func() calls -- this
+file covers the provider-selection/routing layer added on top of it, and
+the loop that has no SDK-provided equivalent for OpenAI/xAI/Perplexity.
 """
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import pytest
 
 from app.chat.providers import (
     ChatProviderAuthError,
+    PERPLEXITY_BASE_URL,
     XAI_BASE_URL,
     get_chat_provider,
 )
@@ -38,6 +39,14 @@ def test_get_chat_provider_selects_xai(monkeypatch):
     assert isinstance(provider, OpenAICompatibleChatProvider)
     assert provider._api_key_env == "XAI_API_KEY"
     assert provider._base_url == XAI_BASE_URL
+
+
+def test_get_chat_provider_selects_perplexity(monkeypatch):
+    monkeypatch.setenv("CHAT_PROVIDER", "perplexity")
+    provider = get_chat_provider()
+    assert isinstance(provider, OpenAICompatibleChatProvider)
+    assert provider._api_key_env == "PERPLEXITY_API_KEY"
+    assert provider._base_url == PERPLEXITY_BASE_URL
 
 
 def test_get_chat_provider_case_insensitive(monkeypatch):

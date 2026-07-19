@@ -105,8 +105,9 @@ app/
     providers/                Pluggable LLM backend (CHAT_PROVIDER):
       base.py                   ChatProvider interface + shared exceptions
       anthropic_provider.py     Claude, via the SDK's built-in tool_runner
-      openai_compatible.py     ChatGPT + Grok (xAI is OpenAI-compatible),
-                              hand-rolled tool-call loop
+      openai_compatible.py     ChatGPT + Grok + Perplexity (all three are
+                              OpenAI-wire-compatible), hand-rolled
+                              tool-call loop
     router.py                 POST /chat
   security/
     audit.py                  Append-only audit log (who did what, when)
@@ -216,17 +217,21 @@ exceptions, and a live P&L side by side with this same chat widget.
 
 The LLM behind it is pluggable (`app/chat/providers/`, mirroring the FX
 provider pattern below): `CHAT_PROVIDER=anthropic` (default, needs
-`ANTHROPIC_API_KEY`), `openai` (ChatGPT, needs `OPENAI_API_KEY`), or `xai`
-(Grok, needs `XAI_API_KEY`) -- all three run the identical tools and
-system prompt, so switching is a config change, not a rewrite. Without
-the relevant key, `/chat` returns a clear "not configured" error rather
-than crashing. Configuration, tuned for a *deterministic business
-reporting* agent rather than a creative one:
+`ANTHROPIC_API_KEY`), `openai` (ChatGPT, needs `OPENAI_API_KEY`), `xai`
+(Grok, needs `XAI_API_KEY`), or `perplexity` (Sonar, needs
+`PERPLEXITY_API_KEY`) -- all four run the identical tools and system
+prompt, so switching is a config change, not a rewrite. **Caveat:**
+Perplexity's tool-calling support isn't confirmed reliable -- if it
+doesn't honor the tools it's sent, it'll answer in prose but never
+actually call `run_reconciliation`/`get_close_status`/etc. Without the
+relevant key, `/chat` returns a clear "not configured" error rather than
+crashing. Configuration, tuned for a *deterministic business reporting*
+agent rather than a creative one:
 
 | Env var | Default | Why |
 |---|---|---|
-| `CHAT_PROVIDER` | `anthropic` | `openai` or `xai` to use ChatGPT or Grok instead |
-| `CHAT_MODEL` | Provider-specific (`claude-opus-4-8` / `gpt-4o` / `grok-4`) | `claude-sonnet-5` is a reasonable cheaper choice for this well-scoped tool-calling task |
+| `CHAT_PROVIDER` | `anthropic` | `openai`, `xai`, or `perplexity` to use ChatGPT, Grok, or Perplexity instead |
+| `CHAT_MODEL` | Provider-specific (`claude-opus-4-8` / `gpt-4o` / `grok-4` / `sonar-pro`) | `claude-sonnet-5` is a reasonable cheaper choice for this well-scoped tool-calling task |
 | `CHAT_MAX_TOKENS` | `4096` | Replies are short business answers, not long-form generation (Anthropic provider only) |
 | `CHAT_EFFORT` | `medium` | Balances quality/cost for routing + reporting, not deep reasoning (Anthropic provider only) |
 | `CHAT_THINKING` | unset | Set to `adaptive` to turn on extended thinking for harder queries (Anthropic provider only) |

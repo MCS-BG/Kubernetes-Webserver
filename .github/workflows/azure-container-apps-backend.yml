@@ -13,11 +13,12 @@ name: Azure Container Apps CD (backend API)
 #      access to the Container App's resource group, stored as the repo
 #      secret AZURE_CREDENTIALS (the JSON from `az ad sp create-for-rbac`).
 #   4. The repo secret ANTHROPIC_API_KEY (the chat agent's API key). Set
-#      the repo variable CHAT_PROVIDER=openai or CHAT_PROVIDER=xai (see
-#      app/chat/providers/) to use ChatGPT or Grok instead -- in that case
-#      also set the repo secret OPENAI_API_KEY or XAI_API_KEY respectively.
-#      All three provider secrets are optional and synced independently;
-#      only the one CHAT_PROVIDER actually selects needs to be set.
+#      the repo variable CHAT_PROVIDER=openai / xai / perplexity (see
+#      app/chat/providers/) to use ChatGPT, Grok, or Perplexity instead --
+#      in that case also set the repo secret OPENAI_API_KEY / XAI_API_KEY /
+#      PERPLEXITY_API_KEY respectively. All four provider secrets are
+#      optional and synced independently; only the one CHAT_PROVIDER
+#      actually selects needs to be set.
 #   5. The repo variables/secrets below set to match your resources.
 #
 # This workflow deliberately uses plain `az` CLI calls rather than a
@@ -66,16 +67,17 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
         run: |
           az containerapp secret set \
             --name "$CONTAINER_APP_NAME" \
             --resource-group "$RESOURCE_GROUP" \
             --secrets anthropic-api-key="${{ secrets.ANTHROPIC_API_KEY }}"
 
-          # OPENAI_API_KEY / XAI_API_KEY are optional -- only needed if
-          # CHAT_PROVIDER selects that provider. Synced only when the
-          # matching repo secret is actually set, so an Anthropic-only
-          # deployment doesn't grow two unused empty secrets.
+          # OPENAI_API_KEY / XAI_API_KEY / PERPLEXITY_API_KEY are optional --
+          # only needed if CHAT_PROVIDER selects that provider. Synced only
+          # when the matching repo secret is actually set, so an
+          # Anthropic-only deployment doesn't grow unused empty secrets.
           if [ -n "$OPENAI_API_KEY" ]; then
             az containerapp secret set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" \
               --secrets openai-api-key="$OPENAI_API_KEY"
@@ -84,11 +86,16 @@ jobs:
             az containerapp secret set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" \
               --secrets xai-api-key="$XAI_API_KEY"
           fi
+          if [ -n "$PERPLEXITY_API_KEY" ]; then
+            az containerapp secret set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" \
+              --secrets perplexity-api-key="$PERPLEXITY_API_KEY"
+          fi
 
       - name: Deploy new image to the Container App
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
           CHAT_PROVIDER: ${{ vars.CHAT_PROVIDER }}
         run: |
           ENV_VARS=(ANTHROPIC_API_KEY=secretref:anthropic-api-key)
@@ -97,6 +104,9 @@ jobs:
           fi
           if [ -n "$XAI_API_KEY" ]; then
             ENV_VARS+=(XAI_API_KEY=secretref:xai-api-key)
+          fi
+          if [ -n "$PERPLEXITY_API_KEY" ]; then
+            ENV_VARS+=(PERPLEXITY_API_KEY=secretref:perplexity-api-key)
           fi
           if [ -n "$CHAT_PROVIDER" ]; then
             ENV_VARS+=("CHAT_PROVIDER=$CHAT_PROVIDER")

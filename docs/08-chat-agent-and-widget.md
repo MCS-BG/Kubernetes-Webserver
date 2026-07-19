@@ -78,8 +78,9 @@ vendor's SDK. Set `CHAT_PROVIDER`:
 | `anthropic` (default) | Claude | `ANTHROPIC_API_KEY` | `claude-opus-4-8` |
 | `openai` | ChatGPT | `OPENAI_API_KEY` | `gpt-4o` |
 | `xai` | Grok | `XAI_API_KEY` | `grok-4` |
+| `perplexity` | Perplexity Sonar | `PERPLEXITY_API_KEY` | `sonar-pro` |
 
-Override the model with `CHAT_MODEL` regardless of provider. All three
+Override the model with `CHAT_MODEL` regardless of provider. All four
 reuse the exact same tools (`app/chat/tools.py`) and the exact same
 `SYSTEM_PROMPT` (`app/chat/agent.py`) -- switching providers is a config
 change, not a rewrite of what the agent can do.
@@ -87,13 +88,23 @@ change, not a rewrite of what the agent can do.
 The mechanics differ under the hood: Anthropic's SDK has a built-in
 `tool_runner` that loops through tool calls automatically
 (`app/chat/providers/anthropic_provider.py`). OpenAI's SDK has no such
-loop, so the OpenAI/xAI provider hand-rolls it
+loop, so the OpenAI/xAI/Perplexity provider hand-rolls it
 (`app/chat/providers/openai_compatible.py`): call the model, check for
 `tool_calls`, execute each one via the tool's own `.call(...)`, feed the
 result back as a `tool`-role message, repeat (capped at 8 rounds as a
-runaway-loop guard). xAI's Grok API is OpenAI-compatible, so it's the
-same provider class pointed at a different `base_url` and key -- not a
-second implementation.
+runaway-loop guard). xAI's Grok API and Perplexity's Sonar API are both
+OpenAI-wire-compatible, so they're the same provider class pointed at a
+different `base_url` and key -- not separate implementations.
+
+**Perplexity caveat:** wire-compatibility isn't the same thing as
+tool-calling support, and Sonar's support for the `tools` parameter isn't
+confirmed reliable at the time this was written. If it doesn't honor
+tools the way OpenAI/xAI do, a Perplexity-backed chat can still answer in
+prose, but it will never actually call `run_reconciliation`,
+`get_close_status`, `get_profit_and_loss`, or anything else in
+`app/chat/tools.py` -- it would just be an ungrounded Q&A bot layered on
+top of an app whose entire value is grounded answers. Verify tool-calling
+against Perplexity's current docs before pointing a client at it.
 
 Every provider raises the same shared exceptions
 (`ChatProviderAuthError`/`ChatProviderRateLimitError`/

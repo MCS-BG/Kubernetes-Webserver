@@ -164,23 +164,34 @@ Actions -> Variables), matching what you created above:
 - `AZURE_RESOURCE_GROUP` = `rg-ledgeos-demo`
 - `CONTAINER_APP_NAME` = `ca-ledgeos-api`
 
-### Using ChatGPT or Grok instead of Claude
+### Using ChatGPT, Grok, or Perplexity instead of Claude
 
 The chat agent's LLM is pluggable (`app/chat/providers/`, `CHAT_PROVIDER`
 env var) -- Claude is the default and needs no extra setup beyond the
-`ANTHROPIC_API_KEY` repo secret above. To use OpenAI (ChatGPT) or xAI
-(Grok) instead:
+`ANTHROPIC_API_KEY` repo secret above. To use OpenAI (ChatGPT), xAI
+(Grok), or Perplexity instead:
 
-1. Add the repo secret `OPENAI_API_KEY` (from platform.openai.com/api-keys)
-   or `XAI_API_KEY` (from console.x.ai) -- only the one you're switching to.
-2. Set the repo **variable** `CHAT_PROVIDER` to `openai` or `xai`.
+1. Add the repo secret `OPENAI_API_KEY` (from platform.openai.com/api-keys),
+   `XAI_API_KEY` (from console.x.ai), or `PERPLEXITY_API_KEY` (from
+   perplexity.ai/settings/api) -- only the one you're switching to.
+2. Set the repo **variable** `CHAT_PROVIDER` to `openai`, `xai`, or
+   `perplexity`.
 3. Optionally set the repo **variable** `CHAT_MODEL` to override that
    provider's default model.
 
 The backend CD workflow syncs whichever of `ANTHROPIC_API_KEY` /
-`OPENAI_API_KEY` / `XAI_API_KEY` is actually set as a repo secret into the
-Container App on every deploy -- an unused provider's secret can simply be
-left unset. See [docs/08-chat-agent-and-widget.md](docs/08-chat-agent-and-widget.md).
+`OPENAI_API_KEY` / `XAI_API_KEY` / `PERPLEXITY_API_KEY` is actually set as
+a repo secret into the Container App on every deploy -- an unused
+provider's secret can simply be left unset. See
+[docs/08-chat-agent-and-widget.md](docs/08-chat-agent-and-widget.md).
+
+**Perplexity caveat:** its Sonar API is OpenAI-wire-compatible, which is
+why it reuses the same provider code as Grok, but its support for
+function/tool-calling is not confirmed reliable at the time this was
+written. If Sonar doesn't honor the tools it's sent, `CHAT_PROVIDER=perplexity`
+will answer in prose but never actually call `run_reconciliation`,
+`get_close_status`, or any other tool -- verify against Perplexity's
+current docs before relying on it for anything beyond a written answer.
 
 ## Widget: Azure Static Web Apps
 
