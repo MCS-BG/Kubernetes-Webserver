@@ -1,0 +1,119 @@
+name: Azure Container Apps CD (backend API)
+
+# Builds this repo's Dockerfile, pushes it to Azure Container Registry, and
+# updates an existing Azure Container App to run the new image.
+#
+# Setup required before this workflow can run (see AZURE_DEPLOYMENT.md):
+#   1. An Azure Container Registry (ACR).
+#   2. An existing Azure Container App + environment (created once via
+#      `az containerapp create`, including the ALLOWED_ORIGINS env var it
+#      needs -- ANTHROPIC_API_KEY is synced on every deploy by this
+#      workflow itself, see the "Sync LLM provider API keys" step below).
+#   3. A service principal with push access to the ACR and contributor
+#      access to the Container App's resource group, stored as the repo
+#      secret AZURE_CREDENTIALS (the JSON from `az ad sp create-for-rbac`).
+#   4. The repo secret ANTHROPIC_API_KEY (the chat agent's API key). Set
+#      the repo variable CHAT_PROVIDER=openai / xai / perplexity (see
+#      app/chat/providers/) to use ChatGPT, Grok, or Perplexity instead --
+#      in that case also set the repo secret OPENAI_API_KEY / XAI_API_KEY /
+#      PERPLEXITY_API_KEY respectively. All four provider secrets are
+#      optional and synced independently; only the one CHAT_PROVIDER
+#      actually selects needs to be set.
+#   5. The repo variables/secrets below set to match your resources.
+#
+# This workflow deliberately uses plain `az` CLI calls rather than a
+# higher-level "deploy" GitHub Action -- fewer moving parts to verify, and
+# the exact commands are easy to read and adjust.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "requirements.txt"
+      - "Dockerfile"
+      - ".github/workflows/azure-container-apps-backend.yml"
+  workflow_dispatch: {}
+
+env:
+  ACR_NAME: ${{ vars.ACR_NAME }} # e.g. "financeclosereg" (no .azurecr.io suffix)
+  RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+  CONTAINER_APP_NAME: ${{ vars.CONTAINER_APP_NAME }}
+  IMAGE_NAME: finance-close-platform
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Build and push image via ACR Tasks
+        run: |
+          az acr build \
+            --registry "$ACR_NAME" \
+            --image "$IMAGE_NAME:${{ github.sha }}" \
+            --image "$IMAGE_NAME:latest" \
+            .
+
+      - name: Sync LLM provider API keys into the Container App
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+        run: |
+          az containerapp secret set \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --secrets anthropic-api-key="${{ secrets.ANTHROPIC_API_KEY }}"
+
+          # OPENAI_API_KEY / XAI_API_KEY / PERPLEXITY_API_KEY are optional --
+          # only needed if CHAT_PROVIDER selects that provider. Synced only
+          # when the matching repo secret is actually set, so an
+          # Anthropic-only deployment doesn't grow unused empty secrets.
+          if [ -n "$OPENAI_API_KEY" ]; then
+            az containerapp secret set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" \
+              --secrets openai-api-key="$OPENAI_API_KEY"
+          fi
+          if [ -n "$XAI_API_KEY" ]; then
+            az containerapp secret set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" \
+              --secrets xai-api-key="$XAI_API_KEY"
+          fi
+          if [ -n "$PERPLEXITY_API_KEY" ]; then
+            az containerapp secret set --name "$CONTAINER_APP_NAME" --resource-group "$RESOURCE_GROUP" \
+              --secrets perplexity-api-key="$PERPLEXITY_API_KEY"
+          fi
+
+      - name: Deploy new image to the Container App
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+          CHAT_PROVIDER: ${{ vars.CHAT_PROVIDER }}
+        run: |
+          ENV_VARS=(ANTHROPIC_API_KEY=secretref:anthropic-api-key)
+          if [ -n "$OPENAI_API_KEY" ]; then
+            ENV_VARS+=(OPENAI_API_KEY=secretref:openai-api-key)
+          fi
+          if [ -n "$XAI_API_KEY" ]; then
+            ENV_VARS+=(XAI_API_KEY=secretref:xai-api-key)
+          fi
+          if [ -n "$PERPLEXITY_API_KEY" ]; then
+            ENV_VARS+=(PERPLEXITY_API_KEY=secretref:perplexity-api-key)
+          fi
+          if [ -n "$CHAT_PROVIDER" ]; then
+            ENV_VARS+=("CHAT_PROVIDER=$CHAT_PROVIDER")
+          fi
+
+          az containerapp update \
+            --name "$CONTAINER_APP_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --image "$ACR_NAME.azurecr.io/$IMAGE_NAME:${{ github.sha }}" \
+            --set-env-vars "${ENV_VARS[@]}"

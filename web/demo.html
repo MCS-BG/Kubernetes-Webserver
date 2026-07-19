@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LedgeOS Demo</title>
+<script src="config.js"></script>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f1ea;
+    --panel: #ffffff;
+    --ink: #1c1a17;
+    --muted: #6b675f;
+    --accent: #1c5075;
+    --accent-ink: #ffffff;
+    --border: #ded8ca;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --critical: #d03b3b;
+    --series: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15181c;
+      --panel: #1e2227;
+      --ink: #eceae4;
+      --muted: #9a978f;
+      --accent: #7fabc9;
+      --accent-ink: #0f2a43;
+      --border: #33383e;
+      --good: #0ca30c;
+      --warning: #fab219;
+      --critical: #e66767;
+      --series: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header .brand h1 { font-size: 20px; margin: 0 0 2px 0; }
+  header .brand span { font-size: 13px; color: var(--muted); }
+  header .actions { display: flex; align-items: center; gap: 10px; }
+  header .actions span { font-size: 12px; color: var(--muted); }
+  button {
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.secondary { background: var(--panel); border: 1px solid var(--border); color: var(--ink); }
+
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px 24px 60px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 { font-size: 14px; margin: 0 0 14px 0; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .card .card-note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; }
+  .stat { text-align: left; }
+  .stat .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .label { font-size: 12px; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  td.num { text-align: right; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid currentColor;
+  }
+  .pill.good { color: var(--good); }
+  .pill.warning { color: var(--warning); }
+  .pill.critical { color: var(--critical); }
+
+  .flag-list { display: flex; flex-direction: column; gap: 10px; }
+  .flag { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+  .flag .flag-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .flag .flag-type { font-size: 12px; color: var(--muted); }
+  .flag .flag-msg { font-size: 13px; }
+
+  .pl-rows { display: flex; flex-direction: column; gap: 10px; }
+  .pl-row { display: grid; grid-template-columns: 150px 1fr 90px; align-items: center; gap: 10px; }
+  .pl-row.subtotal { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; }
+  .pl-row .pl-label { font-size: 13px; }
+  .pl-row.subtotal .pl-label { font-weight: 700; }
+  .pl-row .pl-value { font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
+  .pl-row.subtotal .pl-value { font-weight: 700; }
+  .bar-track { height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 5px; background: var(--series); }
+
+  .unclassified { margin-top: 14px; padding: 10px 12px; border: 1px dashed var(--warning); border-radius: 8px; font-size: 12px; }
+
+  #chat-frame { width: 100%; height: 420px; border: none; border-radius: 8px; }
+
+  .empty-state { color: var(--muted); font-size: 13px; }
+  .error-state { color: var(--critical); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>LedgeOS</h1>
+    <span>Ledge (close &amp; reconciliation) + Sumly (P&amp;L) &mdash; live demo dashboard</span>
+  </div>
+  <div class="actions">
+    <span id="status-text">Loading demo data&hellip;</span>
+    <button type="button" id="reload-btn">Reload demo data</button>
+  </div>
+</header>
+
+<main>
+  <div class="card wide" id="entity-card">
+    <h2>Demo entity</h2>
+    <div class="empty-state">Seeding&hellip;</div>
+  </div>
+
+  <div class="card">
+    <h2>Reconciliation summary</h2>
+    <div class="stat-row" id="summary-stats"></div>
+    <div class="card-note">Bank feed matched against the GL, scoped to the Cash account (1000) &mdash; see <a href="../docs/04-reconciliation.md" target="_blank" rel="noopener">Step 4</a>.</div>
+  </div>
+
+  <div class="card">
+    <h2>Trial balance tie-out</h2>
+    <table id="tb-table">
+      <thead><tr><th>Account</th><th>Computed</th><th>Reported</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card wide">
+    <h2>Exceptions</h2>
+    <div class="flag-list" id="flag-list"></div>
+  </div>
+
+  <div class="card wide">
+    <h2>Profit &amp; loss &mdash; June 2026 (Sumly)</h2>
+    <div class="pl-rows" id="pl-rows"></div>
+    <div id="unclassified-note"></div>
+    <div class="card-note">
+      <a id="export-link" href="#" target="_blank" rel="noopener">Download as a live formula-driven spreadsheet (.xlsx)</a>
+      &mdash; every figure is a real SUMIFS/SUM formula, see <a href="../docs/07-profit-and-loss.md" target="_blank" rel="noopener">Step 7</a>.
+    </div>
+  </div>
+
+  <div class="card wide">
+    <h2>Ask LedgeOS</h2>
+    <iframe id="chat-frame" src="index.html" title="LedgeOS chat assistant"></iframe>
+  </div>
+</main>
+
+<script>
+(function () {
+  const apiBase = window.API_BASE_URL || "";
+  const statusText = document.getElementById("status-text");
+  const reloadBtn = document.getElementById("reload-btn");
+
+  let state = null;
+
+  async function fetchJson(path, options) {
+    const resp = await fetch(apiBase + path, options);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || resp.statusText);
+    return data;
+  }
+
+  function fmt(amount) {
+    const n = Number(amount);
+    return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function renderEntity(seed) {
+    const card = document.getElementById("entity-card");
+    card.innerHTML =
+      '<div class="stat-row">' +
+      '<div class="stat"><div class="value">' + seed.entity_name + '</div><div class="label">Entity</div></div>' +
+      '<div class="stat"><div class="value">' + seed.period_start + '</div><div class="label">Period start</div></div>' +
+      '<div class="stat"><div class="value">' + seed.period_end + '</div><div class="label">Period end</div></div>' +
+      '</div>';
+  }
+
+  function renderSummary(summary) {
+    const el = document.getElementById("summary-stats");
+    const rows = [
+      ["Matched", summary.matched],
+      ["Unmatched (bank)", summary.unmatched_bank],
+      ["Unmatched (GL)", summary.unmatched_gl],
+      ["Flags", summary.flags_total],
+      ["Suppressed", summary.suppressed_by_learned_patterns],
+    ];
+    el.innerHTML = rows
+      .map((r) => '<div class="stat"><div class="value">' + r[1] + '</div><div class="label">' + r[0] + '</div></div>')
+      .join("");
+  }
+
+  function renderTrialBalance(data) {
+    const tbody = document.querySelector("#tb-table tbody");
+    tbody.innerHTML = data.accounts
+      .map((a) => {
+        const pill = a.tied_out
+          ? '<span class="pill good">&#10003; Tied out</span>'
+          : '<span class="pill critical">&#9888; Variance</span>';
+        return (
+          "<tr><td>" + a.account_code + " " + a.account_name + "</td>" +
+          '<td class="num">' + fmt(a.computed_debit) + " / " + fmt(a.computed_credit) + "</td>" +
+          '<td class="num">' + fmt(a.reported_debit) + " / " + fmt(a.reported_credit) + "</td>" +
+          "<td>" + pill + "</td></tr>"
+        );
+      })
+      .join("");
+  }
+
+  function renderFlags(data) {
+    const list = document.getElementById("flag-list");
+    if (data.flags.length === 0) {
+      list.innerHTML = '<div class="empty-state">No exceptions.</div>';
+      return;
+    }
+    list.innerHTML = data.flags
+      .map((f) => {
+        const pillClass = f.severity === "critical" ? "critical" : "warning";
+        const icon = f.severity === "critical" ? "&#9940;" : "&#9888;";
+        return (
+          '<div class="flag"><div class="flag-head">' +
+          '<span class="flag-type">' + f.type + '</span>' +
+          '<span class="pill ' + pillClass + '">' + icon + " " + f.severity + "</span>" +
+          '</div><div class="flag-msg">' + f.message + "</div></div>"
+        );
+      })
+      .join("");
+  }
+
+  function renderPL(pl) {
+    const rows = document.getElementById("pl-rows");
+    const stages = [
+      { label: "Revenue", value: pl.revenue.total, subtotal: false },
+      { label: "Cost of Goods Sold", value: pl.cogs.total, subtotal: false },
+      { label: "Gross Profit", value: pl.gross_profit, subtotal: true },
+      { label: "Operating Expenses", value: pl.operating_expenses.total, subtotal: false },
+      { label: "Operating Income", value: pl.operating_income, subtotal: true },
+      { label: "Net Income", value: pl.net_income, subtotal: true },
+    ];
+    const max = Math.max(...stages.map((s) => Math.abs(Number(s.value)))) || 1;
+    rows.innerHTML = stages
+      .map((s) => {
+        const pct = Math.max(2, Math.round((Math.abs(Number(s.value)) / max) * 100));
+        return (
+          '<div class="pl-row' + (s.subtotal ? " subtotal" : "") + '">' +
+          '<div class="pl-label">' + s.label + "</div>" +
+          '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
+          '<div class="pl-value">$' + fmt(s.value) + "</div>" +
+          "</div>"
+        );
+      })
+      .join("");
+
+    const note = document.getElementById("unclassified-note");
+    if (pl.unclassified_account_codes.length > 0) {
+      note.innerHTML =
+        '<div class="unclassified">&#9888; Unclassified accounts excluded from the totals above: ' +
+        pl.unclassified_account_codes.join(", ") +
+        " &mdash; classify them in the chart of accounts to include their activity.</div>";
+    } else {
+      note.innerHTML = "";
+    }
+  }
+
+  async function loadDashboard() {
+    reloadBtn.disabled = true;
+    statusText.textContent = "Loading demo data…";
+    try {
+      const seed = await fetchJson("/demo/seed", { method: "POST" });
+      state = seed;
+      renderEntity(seed);
+      renderSummary(seed.summary);
+
+      const [tb, exceptions, pl] = await Promise.all([
+        fetchJson("/reconciliations/" + seed.reconciliation_id + "/trial-balance"),
+        fetchJson("/reconciliations/" + seed.reconciliation_id + "/exceptions"),
+        fetchJson(
+          "/entities/" + seed.entity_id + "/profit-and-loss?period_start=" + seed.period_start + "&period_end=" + seed.period_end
+        ),
+      ]);
+      renderTrialBalance(tb);
+      renderFlags(exceptions);
+      renderPL(pl);
+
+      document.getElementById("export-link").href =
+        apiBase + "/entities/" + seed.entity_id + "/profit-and-loss/export?period_start=" + seed.period_start + "&period_end=" + seed.period_end;
+
+      statusText.textContent = "Loaded " + new Date().toLocaleTimeString();
+    } catch (err) {
+      statusText.textContent = "";
+      document.getElementById("entity-card").innerHTML =
+        '<div class="error-state">Could not load demo data: ' + err.message + "</div>";
+    } finally {
+      reloadBtn.disabled = false;
+    }
+  }
+
+  reloadBtn.addEventListener("click", loadDashboard);
+  loadDashboard();
+})();
+</script>
+</body>
+</html>
