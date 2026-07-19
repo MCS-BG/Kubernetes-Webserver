@@ -49,3 +49,7 @@ not fine for production until it's backed by Postgres.
 Whatever you deploy to, set `AUTH_TOKENS` before real users touch it --
 the unauthenticated-admin default that makes local dev friction-free is
 not an appropriate production posture.
+
+## Next
+
+[Step 11: Month-End Close Workflow](11-month-end-close.md)

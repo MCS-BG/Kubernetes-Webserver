@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from pydantic import BaseModel
 
 from app.coa import AccountType
@@ -35,3 +37,23 @@ class ReconciliationRequest(BaseModel):
     # against every GL account, which can produce false matches against an
     # unrelated expense/revenue leg that happens to share the same amount.
     cash_account_codes: list[str] | None = None
+
+
+class StartCloseRequest(BaseModel):
+    entity_id: str
+    period_start: date
+    period_end: date
+
+
+class SubmitCloseRequest(BaseModel):
+    close_id: str
+    reconciliation_id: str
+
+
+class ApproveCloseRequest(BaseModel):
+    close_id: str
+
+
+class RejectCloseRequest(BaseModel):
+    close_id: str
+    reason: str

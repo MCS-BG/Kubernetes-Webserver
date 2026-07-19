@@ -26,6 +26,10 @@ endpoint requiring a lower one.
 | `POST /feedback` | `reviewer` |
 | `GET /audit-log` | `reviewer` |
 | `POST /entities/{id}/chart-of-accounts` | `preparer` |
+| `POST /close/start` | `preparer` |
+| `POST /close/submit` | `preparer` |
+| `POST /close/approve` | `reviewer` |
+| `POST /close/reject` | `reviewer` |
 
 Send the token as a bearer header:
 
@@ -66,7 +70,9 @@ curl -X POST http://127.0.0.1:8000/feedback \
 ```
 
 See `tests/test_segregation_of_duties.py` for the full working example
-this was copied from.
+this was copied from. `POST /close/approve` and `POST /close/reject`
+enforce the identical rule against the close's `prepared_by` actor -- see
+[Step 11](11-month-end-close.md) and `tests/test_close.py`.
 
 ## The audit log
 

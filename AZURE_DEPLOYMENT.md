@@ -164,6 +164,24 @@ Actions -> Variables), matching what you created above:
 - `AZURE_RESOURCE_GROUP` = `rg-ledgeos-demo`
 - `CONTAINER_APP_NAME` = `ca-ledgeos-api`
 
+### Using ChatGPT or Grok instead of Claude
+
+The chat agent's LLM is pluggable (`app/chat/providers/`, `CHAT_PROVIDER`
+env var) -- Claude is the default and needs no extra setup beyond the
+`ANTHROPIC_API_KEY` repo secret above. To use OpenAI (ChatGPT) or xAI
+(Grok) instead:
+
+1. Add the repo secret `OPENAI_API_KEY` (from platform.openai.com/api-keys)
+   or `XAI_API_KEY` (from console.x.ai) -- only the one you're switching to.
+2. Set the repo **variable** `CHAT_PROVIDER` to `openai` or `xai`.
+3. Optionally set the repo **variable** `CHAT_MODEL` to override that
+   provider's default model.
+
+The backend CD workflow syncs whichever of `ANTHROPIC_API_KEY` /
+`OPENAI_API_KEY` / `XAI_API_KEY` is actually set as a repo secret into the
+Container App on every deploy -- an unused provider's secret can simply be
+left unset. See [docs/08-chat-agent-and-widget.md](docs/08-chat-agent-and-widget.md).
+
 ## Widget: Azure Static Web Apps
 
 `centralus` is a verified-supported Azure Static Web Apps region, so

@@ -9,6 +9,7 @@ from datetime import date
 from decimal import Decimal
 
 from app.chat import tools as chat_tools
+from app.close import close_workflow
 from app.coa import AccountType, chart_of_accounts
 from app.entities import registry as entity_registry
 from app.models import BankTransaction, GLEntry, TrialBalanceLine
@@ -120,6 +121,63 @@ def test_get_profit_and_loss_bad_dates():
         entity_name="Date Test Co", period_start="not-a-date", period_end="2026-06-30"
     )
     assert "ISO dates" in result
+
+
+def test_get_close_status_unknown_entity():
+    result = chat_tools.get_close_status.func(
+        entity_name="Nope Inc", period_start="2026-06-01", period_end="2026-06-30"
+    )
+    assert "No entity named" in result
+
+
+def test_get_close_status_bad_dates():
+    entity = _make_entity(name="Close Date Test Co")
+    result = chat_tools.get_close_status.func(
+        entity_name="Close Date Test Co", period_start="not-a-date", period_end="2026-06-30"
+    )
+    assert "ISO dates" in result
+
+
+def test_get_close_status_not_started():
+    entity = _make_entity(name="Never Closed Co")
+    result = chat_tools.get_close_status.func(
+        entity_name="Never Closed Co", period_start="2026-06-01", period_end="2026-06-30"
+    )
+    assert "not_started" in result
+
+
+def test_get_close_status_reports_blocking_critical_exceptions():
+    entity = _make_entity(name="Blocked Close Co")
+
+    bank = [BankTransaction(date=date(2026, 6, 30), amount=Decimal("500.00"), currency="USD", account="Operating")]
+    gl = [
+        GLEntry(date=date(2026, 6, 30), amount=Decimal("500.00"), currency="USD", account_code="1000", account_name="Cash"),
+        GLEntry(date=date(2026, 6, 30), amount=Decimal("-500.00"), currency="USD", account_code="4000", account_name="Revenue"),
+    ]
+    # No trial balance uploaded -- guarantees ACCOUNT_TIE_OUT_MISMATCH CRITICAL flags.
+    store.add_source(bank=bank, gl=gl, trial_balance=[], entity_id=entity.id)
+
+    summary_text = chat_tools.run_reconciliation.func(entity_name="Blocked Close Co", cash_account_codes="1000")
+    reconciliation_id = summary_text.split("reconciliation_id: ")[1].split(")")[0]
+
+    period = close_workflow.start(
+        entity_id=entity.id,
+        period_start=date(2026, 6, 1),
+        period_end=date(2026, 6, 30),
+        actor="alice",
+    )
+    result_obj = store.results[reconciliation_id]
+    try:
+        close_workflow.submit_for_review(period.id, reconciliation_id, result_obj, actor="alice")
+    except Exception:
+        pass  # expected: blocked by critical flags, status stays in_progress
+
+    status_text = chat_tools.get_close_status.func(
+        entity_name="Blocked Close Co", period_start="2026-06-01", period_end="2026-06-30"
+    )
+    assert "in_progress" in status_text
+    assert "Blocked by" in status_text
+    assert "critical exception" in status_text
 
 
 def test_get_profit_and_loss_end_to_end():

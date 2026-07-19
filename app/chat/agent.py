@@ -1,34 +1,14 @@
-"""The headless chat agent: a tool-use loop over the Claude API, using the
-existing reconciliation/entity/RAG/skill code as its only tools.
-
-Model/effort/token defaults are chosen for a *deterministic business
-reporting* agent, not a creative one:
-  - Model defaults to claude-opus-4-8 (override via CHAT_MODEL for cost --
-    claude-sonnet-5 is a reasonable cheaper choice for this well-scoped
-    tool-calling task).
-  - Sampling parameters (temperature/top_p/top_k) aren't set: Opus 4.8
-    rejects non-default values outright, and determinism here comes from
-    tight tool schemas and a narrow system prompt, not from sampling.
-  - Extended thinking is left off by default (omitting `thinking` on Opus
-    4.8 runs without it) -- this agent's job is routing to tools and
-    reporting their output verbatim, not open-ended reasoning. Set
-    CHAT_THINKING=adaptive to turn it on for harder queries.
-  - max_tokens defaults to a modest 4096: replies are short business
-    answers, not long-form generation.
+"""The headless chat agent: routes a conversation to a pluggable LLM
+provider (Anthropic, OpenAI/ChatGPT, or xAI/Grok -- see app/chat/providers/,
+selected via CHAT_PROVIDER), using the existing reconciliation/entity/RAG/
+skill/close-workflow code as its only tools.
 """
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 
-import anthropic
-
+from app.chat.providers import get_chat_provider
 from app.chat.tools import ALL_TOOLS
-
-DEFAULT_MODEL = os.environ.get("CHAT_MODEL", "claude-opus-4-8")
-DEFAULT_MAX_TOKENS = int(os.environ.get("CHAT_MAX_TOKENS", "4096"))
-DEFAULT_EFFORT = os.environ.get("CHAT_EFFORT", "medium")
-DEFAULT_THINKING = os.environ.get("CHAT_THINKING")  # unset, or "adaptive"
 
 SYSTEM_PROMPT = """You are LedgeOS, the headless close & reporting assistant for Two \
 Rivers Advisory clients. You have two capabilities, both reachable in the same \
@@ -39,6 +19,10 @@ voice or text -- no dashboard required.
 Rules:
 - If it's ambiguous which legal entity a request is about, call list_entities and ask \
 the user to confirm before running anything.
+- For "why hasn't month-end closed" or any close-status question, call get_close_status \
+-- it's grounded in the actual workflow state (not started / in progress / pending \
+review / approved / rejected, plus any blocking critical exceptions). Never guess a \
+reason that tool doesn't return.
 - Report figures exactly as returned by tools. Never estimate, round beyond what a tool \
 returned, or invent a number.
 - When a user says an exception isn't a real issue (e.g. "that vendor always pays late, \
@@ -57,44 +41,15 @@ class ChatSession:
 _sessions: dict[str, ChatSession] = {}
 
 
-def _client() -> anthropic.Anthropic:
-    return anthropic.Anthropic()
-
-
-def _request_kwargs() -> dict:
-    kwargs: dict = {
-        "model": DEFAULT_MODEL,
-        "max_tokens": DEFAULT_MAX_TOKENS,
-        "system": SYSTEM_PROMPT,
-        "output_config": {"effort": DEFAULT_EFFORT},
-    }
-    if DEFAULT_THINKING:
-        kwargs["thinking"] = {"type": DEFAULT_THINKING}
-    return kwargs
-
-
 def send_message(session_id: str, user_message: str) -> str:
     session = _sessions.setdefault(session_id, ChatSession())
     session.messages.append({"role": "user", "content": user_message})
 
-    client = _client()
-    runner = client.beta.messages.tool_runner(
-        tools=ALL_TOOLS,
-        messages=session.messages,
-        **_request_kwargs(),
-    )
+    provider = get_chat_provider()
+    reply = provider.send(session.messages, SYSTEM_PROMPT, ALL_TOOLS)
 
-    final_message = None
-    for message in runner:
-        final_message = message
-
-    if final_message is None:
-        return "(no response)"
-
-    session.messages.append({"role": "assistant", "content": final_message.content})
-
-    text_parts = [block.text for block in final_message.content if block.type == "text"]
-    return "\n".join(text_parts) if text_parts else "(no text response)"
+    session.messages.append({"role": "assistant", "content": reply})
+    return reply
 
 
 def reset_session(session_id: str) -> None:

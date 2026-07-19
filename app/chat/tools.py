@@ -10,9 +10,11 @@ from datetime import date
 import requests
 from anthropic import beta_tool
 
+from app.close import CloseStatus, close_workflow
 from app.coa import chart_of_accounts
 from app.entities import registry as entity_registry
 from app.fx import get_fx_provider
+from app.models import FlagSeverity
 from app.rag import rag_store
 from app.reconciliation import check_fx_rates, match_transactions, tie_out
 from app.reporting import compute_profit_and_loss
@@ -244,6 +246,67 @@ def get_profit_and_loss(entity_name: str, period_start: str, period_end: str) ->
     return "\n".join(parts)
 
 
+@beta_tool
+def get_close_status(entity_name: str, period_start: str, period_end: str) -> str:
+    """Check whether a legal entity's month-end close has been started for a
+    period, and if so its exact status -- in progress, pending a reviewer's
+    sign-off, approved, or rejected (with why) -- plus whether it's currently
+    blocked by unresolved critical reconciliation exceptions. This is the
+    grounded answer to "why hasn't month-end closed", read directly from the
+    close workflow's state rather than guessed.
+
+    Read-only: starting, submitting, approving, or rejecting a close requires
+    an authenticated preparer/reviewer via the REST API (POST /close/...),
+    not this chat tool -- segregation of duties (reviewer != preparer) can't
+    be enforced for an unauthenticated chat session.
+
+    Args:
+        entity_name: The legal entity to check, e.g. "Acme Ops LLC". Call
+            list_entities first if you aren't sure of the exact name.
+        period_start: Start of the period, ISO format, e.g. "2026-06-01".
+        period_end: End of the period, ISO format, e.g. "2026-06-30".
+    """
+    entity = entity_registry.find_by_name(entity_name)
+    if not entity:
+        return f"No entity named '{entity_name}' is configured. Call list_entities to see available entities."
+
+    try:
+        start = date.fromisoformat(period_start)
+        end = date.fromisoformat(period_end)
+    except ValueError:
+        return "period_start and period_end must be ISO dates, e.g. 2026-06-01."
+
+    period = close_workflow.find(entity.id, start, end)
+    if not period:
+        return (
+            f"No close has been started for {entity.name}, {start.isoformat()} to "
+            f"{end.isoformat()}. Status: not_started."
+        )
+
+    lines = [
+        f"Close status for {entity.name}, {start.isoformat()} to {end.isoformat()}: "
+        f"{period.status.value}."
+    ]
+    if period.status == CloseStatus.PENDING_REVIEW:
+        lines.append(f"Submitted by {period.prepared_by}, awaiting reviewer sign-off.")
+    elif period.status == CloseStatus.APPROVED:
+        lines.append(f"Approved by {period.reviewed_by}.")
+    elif period.status == CloseStatus.REJECTED:
+        lines.append(f"Rejected by {period.reviewed_by}: {period.rejection_reason}")
+
+    if period.reconciliation_id:
+        result = store.results.get(period.reconciliation_id)
+        if result:
+            open_critical = [f for f in result.flags if f.severity == FlagSeverity.CRITICAL]
+            if open_critical:
+                lines.append(
+                    f"Blocked by {len(open_critical)} unresolved critical exception(s) on "
+                    f"reconciliation {period.reconciliation_id} -- call get_exceptions to see them."
+                )
+
+    return "\n".join(lines)
+
+
 ALL_TOOLS = [
     list_entities,
     run_reconciliation,
@@ -252,4 +315,5 @@ ALL_TOOLS = [
     search_knowledge_base,
     record_exception_feedback,
     get_profit_and_loss,
+    get_close_status,
 ]

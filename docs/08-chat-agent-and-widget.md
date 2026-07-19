@@ -59,16 +59,58 @@ language routing to it:
 | Search an entity's policy docs | `search_knowledge_base` |
 | Mark an exception as a known non-issue | `record_exception_feedback` |
 | Get a P&L for a date range | `get_profit_and_loss` |
+| Check whether month-end has closed for a period, and why not | `get_close_status` |
+
+`get_close_status` is read-only by design -- starting, submitting,
+approving, or rejecting a close stays REST-only (see
+[Step 11](11-month-end-close.md)), since segregation of duties needs a
+real authenticated identity, and a chat session doesn't carry one.
+
+### Multiple LLM providers
+
+The chat agent's LLM is pluggable (`app/chat/providers/`), the same way
+the FX reference-rate source is (`app/fx/`): `/chat` and the agent loop
+only ever depend on the `ChatProvider` interface, never a specific
+vendor's SDK. Set `CHAT_PROVIDER`:
+
+| `CHAT_PROVIDER` | Backend | Required key | Default model |
+|---|---|---|---|
+| `anthropic` (default) | Claude | `ANTHROPIC_API_KEY` | `claude-opus-4-8` |
+| `openai` | ChatGPT | `OPENAI_API_KEY` | `gpt-4o` |
+| `xai` | Grok | `XAI_API_KEY` | `grok-4` |
+
+Override the model with `CHAT_MODEL` regardless of provider. All three
+reuse the exact same tools (`app/chat/tools.py`) and the exact same
+`SYSTEM_PROMPT` (`app/chat/agent.py`) -- switching providers is a config
+change, not a rewrite of what the agent can do.
+
+The mechanics differ under the hood: Anthropic's SDK has a built-in
+`tool_runner` that loops through tool calls automatically
+(`app/chat/providers/anthropic_provider.py`). OpenAI's SDK has no such
+loop, so the OpenAI/xAI provider hand-rolls it
+(`app/chat/providers/openai_compatible.py`): call the model, check for
+`tool_calls`, execute each one via the tool's own `.call(...)`, feed the
+result back as a `tool`-role message, repeat (capped at 8 rounds as a
+runaway-loop guard). xAI's Grok API is OpenAI-compatible, so it's the
+same provider class pointed at a different `base_url` and key -- not a
+second implementation.
+
+Every provider raises the same shared exceptions
+(`ChatProviderAuthError`/`ChatProviderRateLimitError`/
+`ChatProviderConnectionError`/`ChatProviderError`), so `/chat`'s error
+responses (500/429/502 below) look identical no matter which provider is
+configured.
 
 ### Model configuration
 
-See [Step 1](01-setup.md) for the full env var list (`CHAT_MODEL`,
-`CHAT_MAX_TOKENS`, `CHAT_EFFORT`, `CHAT_THINKING`). Defaults are tuned for
-a **deterministic business-reporting agent**, not a creative one: modest
-`max_tokens` (short business answers), no extended thinking unless
-explicitly turned on, and no sampling parameters exposed (Opus 4.8
-rejects non-default `temperature`/`top_p`/`top_k` outright -- determinism
-here comes from tight tool schemas and a narrow system prompt).
+See [Step 1](01-setup.md) for the full env var list (`CHAT_PROVIDER`,
+`CHAT_MODEL`, `CHAT_MAX_TOKENS`, `CHAT_EFFORT`, `CHAT_THINKING`). The
+Anthropic-specific defaults are tuned for a **deterministic
+business-reporting agent**, not a creative one: modest `max_tokens`
+(short business answers), no extended thinking unless explicitly turned
+on, and no sampling parameters exposed (Opus 4.8 rejects non-default
+`temperature`/`top_p`/`top_k` outright -- determinism here comes from
+tight tool schemas and a narrow system prompt).
 
 ## The web widget
 

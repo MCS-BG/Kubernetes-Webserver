@@ -80,6 +80,10 @@ independent of any one account)? The example above is
 Facilities Expense, deliberately included so there's something for the
 tie-out check to actually catch.
 
+A reconciliation's critical flags are also what gates the month-end close
+workflow -- see [Step 11](11-month-end-close.md): a close can't be
+submitted for review while any are still open.
+
 ## Next
 
 [Step 5: Exceptions & Feedback](05-exceptions-and-feedback.md)

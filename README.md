@@ -48,6 +48,11 @@ docs folder is the hands-on runbook.
    operating expenses, operating income, other income/expense, and net
    income -- computed fresh from GL activity for any date range, via API,
    chat, or a downloadable spreadsheet with real formulas throughout.
+8. **Tracks month-end close as an explicit workflow**: not started / in
+   progress / pending review / approved / rejected, per entity + period --
+   submission is blocked while critical reconciliation exceptions are
+   still open, and approval enforces the same segregation-of-duties rule
+   as exception feedback.
 
 ## Architecture
 
@@ -81,6 +86,9 @@ app/
                               where every figure is a real SUMIFS/SUM
                               formula, not a hardcoded number
   entities.py                Legal entity registry (which entity a report is against)
+  close/
+    models.py                  ClosePeriod/CloseStatus/CloseTransition
+    workflow.py                 State machine + the critical-flags readiness gate
   skills/
     store.py                 The "evolving skill file": human feedback on a
                               flag becomes a KnownExceptionPattern, applied
@@ -91,8 +99,14 @@ app/
                               client's own policies/notes
   chat/
     tools.py                  The tools the chat agent can call (thin
-                              wrappers over the engine/entity/RAG/skill code)
-    agent.py                  The tool-use loop against the Claude API
+                              wrappers over the engine/entity/RAG/skill/
+                              close-workflow code)
+    agent.py                  Routes a conversation to the configured provider
+    providers/                Pluggable LLM backend (CHAT_PROVIDER):
+      base.py                   ChatProvider interface + shared exceptions
+      anthropic_provider.py     Claude, via the SDK's built-in tool_runner
+      openai_compatible.py     ChatGPT + Grok (xAI is OpenAI-compatible),
+                              hand-rolled tool-call loop
     router.py                 POST /chat
   security/
     audit.py                  Append-only audit log (who did what, when)
@@ -107,8 +121,8 @@ web/
   index.html                  Minimal chat widget (type or speak) served at /app
 tests/                       pytest suite -- matcher, tie-out, FX flagging,
                              entities, skills/feedback, RAG, chat tools,
-                             security/segregation-of-duties, and the API
-                             end to end
+                             security/segregation-of-duties, month-end
+                             close workflow, and the API end to end
 sample_data/                 A worked example: a bank statement, a GL
                               export, and a trial balance with one planted
                               exception, for demos and onboarding
@@ -200,21 +214,27 @@ an exception.
 load and renders the reconciliation summary, trial balance tie-out,
 exceptions, and a live P&L side by side with this same chat widget.
 
-Requires `ANTHROPIC_API_KEY` (or an `ant auth login` profile) in the
-environment -- without it, `/chat` returns a clear "not configured" error
-rather than crashing. Configuration, tuned for a *deterministic business
+The LLM behind it is pluggable (`app/chat/providers/`, mirroring the FX
+provider pattern below): `CHAT_PROVIDER=anthropic` (default, needs
+`ANTHROPIC_API_KEY`), `openai` (ChatGPT, needs `OPENAI_API_KEY`), or `xai`
+(Grok, needs `XAI_API_KEY`) -- all three run the identical tools and
+system prompt, so switching is a config change, not a rewrite. Without
+the relevant key, `/chat` returns a clear "not configured" error rather
+than crashing. Configuration, tuned for a *deterministic business
 reporting* agent rather than a creative one:
 
 | Env var | Default | Why |
 |---|---|---|
-| `CHAT_MODEL` | `claude-opus-4-8` | `claude-sonnet-5` is a reasonable cheaper choice for this well-scoped tool-calling task |
-| `CHAT_MAX_TOKENS` | `4096` | Replies are short business answers, not long-form generation |
-| `CHAT_EFFORT` | `medium` | Balances quality/cost for routing + reporting, not deep reasoning |
-| `CHAT_THINKING` | unset | Set to `adaptive` to turn on extended thinking for harder queries |
+| `CHAT_PROVIDER` | `anthropic` | `openai` or `xai` to use ChatGPT or Grok instead |
+| `CHAT_MODEL` | Provider-specific (`claude-opus-4-8` / `gpt-4o` / `grok-4`) | `claude-sonnet-5` is a reasonable cheaper choice for this well-scoped tool-calling task |
+| `CHAT_MAX_TOKENS` | `4096` | Replies are short business answers, not long-form generation (Anthropic provider only) |
+| `CHAT_EFFORT` | `medium` | Balances quality/cost for routing + reporting, not deep reasoning (Anthropic provider only) |
+| `CHAT_THINKING` | unset | Set to `adaptive` to turn on extended thinking for harder queries (Anthropic provider only) |
 
-Sampling parameters (temperature/top_p/top_k) aren't exposed: Opus 4.8
-rejects non-default values outright, and determinism here comes from tight
-tool schemas and a narrow system prompt, not from sampling.
+Sampling parameters (temperature/top_p/top_k) aren't exposed for the
+Anthropic provider: Opus 4.8 rejects non-default values outright, and
+determinism here comes from tight tool schemas and a narrow system
+prompt, not from sampling.
 
 ### Multi-entity + the "evolving skill" feedback loop
 

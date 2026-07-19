@@ -37,11 +37,14 @@ Set the ones relevant to what you're doing.
 
 | Variable | Used for | Default |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | The chat agent (Step 8). Without it, `/chat` returns a clear "not configured" error instead of crashing. | unset |
-| `CHAT_MODEL` | Which Claude model the chat agent uses. | `claude-opus-4-8` |
-| `CHAT_MAX_TOKENS` | Max reply length for the chat agent. | `4096` |
-| `CHAT_EFFORT` | Reasoning effort for the chat agent (`low`/`medium`/`high`/`xhigh`/`max`). | `medium` |
-| `CHAT_THINKING` | Set to `adaptive` to turn on extended thinking. | unset (off) |
+| `CHAT_PROVIDER` | Which LLM backs the chat agent (Step 8): `anthropic`, `openai`, or `xai`. | `anthropic` |
+| `ANTHROPIC_API_KEY` | Required if `CHAT_PROVIDER=anthropic` (the default). Without it, `/chat` returns a clear "not configured" error instead of crashing. | unset |
+| `OPENAI_API_KEY` | Required if `CHAT_PROVIDER=openai`. | unset |
+| `XAI_API_KEY` | Required if `CHAT_PROVIDER=xai`. | unset |
+| `CHAT_MODEL` | Which model the selected provider uses. Default depends on `CHAT_PROVIDER`: `claude-opus-4-8` (anthropic), `gpt-4o` (openai), `grok-4` (xai). | see left |
+| `CHAT_MAX_TOKENS` | Max reply length -- Anthropic provider only. | `4096` |
+| `CHAT_EFFORT` | Reasoning effort (`low`/`medium`/`high`/`xhigh`/`max`) -- Anthropic provider only. | `medium` |
+| `CHAT_THINKING` | Set to `adaptive` to turn on extended thinking -- Anthropic provider only. | unset (off) |
 | `FX_PROVIDER` | Currency reference source: `frankfurter` (free, no key) or `oanda`. | `frankfurter` |
 | `OANDA_API_KEY` | Required only if `FX_PROVIDER=oanda`. | unset |
 | `BASE_CURRENCY` | Default base/functional currency for FX and P&L checks. | `USD` |
@@ -58,7 +61,7 @@ Set the ones relevant to what you're doing.
 pytest tests/ -v
 ```
 
-69 tests should pass. If they don't, something in your environment
+88 tests should pass. If they don't, something in your environment
 differs from what this was built against (Python 3.11, the pinned
 versions in `requirements.txt`) -- fix that before proceeding, since every
 later step assumes a working install.

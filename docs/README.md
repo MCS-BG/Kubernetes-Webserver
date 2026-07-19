@@ -19,6 +19,7 @@ invented from reading the code.
 | 8 | [Chat Agent & Web Widget](08-chat-agent-and-widget.md) | Asking for reports by typing or speaking |
 | 9 | [Security, Roles & Audit](09-security-roles-audit.md) | Role-based access, segregation of duties, the audit log, PII masking |
 | 10 | [Deployment](10-deployment.md) | Running this in production (generic k8s or Azure) |
+| 11 | [Month-End Close Workflow](11-month-end-close.md) | Tracking sign-off status (in progress / pending review / approved / rejected) per entity + period |
 
 ## Reading this if you're new
 
@@ -27,6 +28,8 @@ reporting on, feed it data, reconcile it. Steps 5-7 build on that loop
 (exception handling, currency checks, P&L). Step 8 is an alternate way to
 do all of the above conversationally instead of via raw HTTP. Steps 9-10
 are operational concerns that apply regardless of which features you use.
+Step 11 sits on top of reconciliation (Step 4) and exceptions (Step 5) --
+it's the explicit sign-off workflow gated on their output.
 
 ## Where the source of truth lives
 

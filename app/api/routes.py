@@ -10,7 +10,16 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
-from app.api.schemas import ChartOfAccountsEntryRequest, FeedbackRequest, ReconciliationRequest
+from app.api.schemas import (
+    ApproveCloseRequest,
+    ChartOfAccountsEntryRequest,
+    FeedbackRequest,
+    ReconciliationRequest,
+    RejectCloseRequest,
+    StartCloseRequest,
+    SubmitCloseRequest,
+)
+from app.close import ClosePeriod, CloseWorkflowError, close_workflow
 from app.coa import AccountType, chart_of_accounts
 from app.entities import registry as entity_registry
 from app.fx import get_fx_provider
@@ -361,6 +370,179 @@ def get_trial_balance(reconciliation_id: str):
             for l in lines
         ]
     }
+
+
+def _close_period_response(period: ClosePeriod) -> dict:
+    return {
+        "id": period.id,
+        "entity_id": period.entity_id,
+        "period_start": period.period_start.isoformat(),
+        "period_end": period.period_end.isoformat(),
+        "status": period.status.value,
+        "reconciliation_id": period.reconciliation_id,
+        "prepared_by": period.prepared_by,
+        "reviewed_by": period.reviewed_by,
+        "rejection_reason": period.rejection_reason,
+        "history": [
+            {
+                "timestamp": t.timestamp,
+                "actor": t.actor,
+                "from_status": t.from_status.value,
+                "to_status": t.to_status.value,
+                "note": t.note,
+            }
+            for t in period.history
+        ],
+    }
+
+
+@router.post("/close/start")
+def start_close(
+    request: StartCloseRequest,
+    identity: tuple[str, str] = Depends(require_role("preparer")),
+):
+    """Begins (or returns, if already begun) the close period for a legal
+    entity + date range. Idempotent -- safe to call again without
+    resetting an in-progress/pending/approved/rejected period.
+    """
+    if entity_registry.get(request.entity_id) is None:
+        raise HTTPException(404, f"Unknown entity_id {request.entity_id}")
+
+    period = close_workflow.start(
+        entity_id=request.entity_id,
+        period_start=request.period_start,
+        period_end=request.period_end,
+        actor=identity[0],
+    )
+    audit_log.record(
+        actor=identity[0],
+        action="close_started",
+        entity_id=request.entity_id,
+        details={"close_id": period.id, "period_start": str(request.period_start), "period_end": str(request.period_end)},
+    )
+    return _close_period_response(period)
+
+
+@router.post("/close/submit")
+def submit_close(
+    request: SubmitCloseRequest,
+    identity: tuple[str, str] = Depends(require_role("preparer")),
+):
+    """Submits a close period for reviewer sign-off. Blocked (400) while
+    the linked reconciliation run still has open CRITICAL flags -- resolve
+    or suppress them via /feedback first.
+    """
+    period = close_workflow.get(request.close_id)
+    if not period:
+        raise HTTPException(404, f"Unknown close_id {request.close_id}")
+
+    result = store.results.get(request.reconciliation_id)
+    if not result:
+        raise HTTPException(404, f"Unknown reconciliation_id {request.reconciliation_id}")
+
+    if store.result_entity.get(request.reconciliation_id) != period.entity_id:
+        raise HTTPException(
+            400, "This reconciliation belongs to a different entity than this close period."
+        )
+
+    try:
+        period = close_workflow.submit_for_review(
+            request.close_id, request.reconciliation_id, result, actor=identity[0]
+        )
+    except CloseWorkflowError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    audit_log.record(
+        actor=identity[0],
+        action="close_submitted",
+        entity_id=period.entity_id,
+        details={"close_id": period.id, "reconciliation_id": request.reconciliation_id},
+    )
+    return _close_period_response(period)
+
+
+@router.post("/close/approve")
+def approve_close(
+    request: ApproveCloseRequest,
+    identity: tuple[str, str] = Depends(require_role("reviewer")),
+):
+    """Signs off on a pending-review close. Enforces segregation of
+    duties: the reviewer cannot be the same actor who submitted it --
+    same rule and same escape hatch as /feedback (see app/security/auth.py:
+    AUTH_TOKENS unset means every request runs as "unauthenticated", where
+    the rule is a no-op).
+    """
+    period = close_workflow.get(request.close_id)
+    if not period:
+        raise HTTPException(404, f"Unknown close_id {request.close_id}")
+
+    reviewer = identity[0]
+    if period.prepared_by is not None and period.prepared_by == reviewer and reviewer != "unauthenticated":
+        raise HTTPException(
+            403,
+            "Segregation of duties: the reviewer approving this close cannot be the "
+            "same person who submitted it for review.",
+        )
+
+    try:
+        period = close_workflow.approve(request.close_id, actor=reviewer)
+    except CloseWorkflowError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    audit_log.record(
+        actor=reviewer, action="close_approved", entity_id=period.entity_id, details={"close_id": period.id}
+    )
+    return _close_period_response(period)
+
+
+@router.post("/close/reject")
+def reject_close(
+    request: RejectCloseRequest,
+    identity: tuple[str, str] = Depends(require_role("reviewer")),
+):
+    """Sends a pending-review close back for rework, with a reason. Same
+    segregation-of-duties rule as /close/approve. A rejected close can be
+    resubmitted via /close/submit once the reason is addressed.
+    """
+    period = close_workflow.get(request.close_id)
+    if not period:
+        raise HTTPException(404, f"Unknown close_id {request.close_id}")
+
+    reviewer = identity[0]
+    if period.prepared_by is not None and period.prepared_by == reviewer and reviewer != "unauthenticated":
+        raise HTTPException(
+            403,
+            "Segregation of duties: the reviewer rejecting this close cannot be the "
+            "same person who submitted it for review.",
+        )
+
+    try:
+        period = close_workflow.reject(request.close_id, actor=reviewer, reason=request.reason)
+    except CloseWorkflowError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    audit_log.record(
+        actor=reviewer,
+        action="close_rejected",
+        entity_id=period.entity_id,
+        details={"close_id": period.id, "reason": request.reason},
+    )
+    return _close_period_response(period)
+
+
+@router.get("/close/{close_id}")
+def get_close(close_id: str):
+    period = close_workflow.get(close_id)
+    if not period:
+        raise HTTPException(404, f"Unknown close_id {close_id}")
+    return _close_period_response(period)
+
+
+@router.get("/entities/{entity_id}/close")
+def list_close_periods(entity_id: str):
+    if entity_registry.get(entity_id) is None:
+        raise HTTPException(404, f"Unknown entity_id {entity_id}")
+    return {"close_periods": [_close_period_response(p) for p in close_workflow.list_for_entity(entity_id)]}
 
 
 @router.post("/demo/seed")
