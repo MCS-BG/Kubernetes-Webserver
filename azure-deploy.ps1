@@ -69,8 +69,7 @@ param(
     [switch]$SkipLogin,
     [string]$SubscriptionId = "atxclouddev",
     [string]$TenantId       = "4c12a2f7-4bd5-4073-9cb9-3576e959c063",
-    [string]$Location       = "southcentralus",
-    [string]$SwaLocation    = "centralus",
+    [string]$Location       = "centralus",
     [string]$AppName        = "ledgeos",
     [string]$ImageName      = "finance-close-platform",
     [string]$GitHubRepo     = "MCS-BG/Kubernetes-Webserver",
@@ -141,7 +140,7 @@ function Invoke-Gh {
 }
 
 Write-Host "Environment : $EnvLabel  (code: $EnvCode)" -ForegroundColor Yellow
-Write-Host "Location    : $Location  |  SWA location: $SwaLocation" -ForegroundColor Yellow
+Write-Host "Location    : $Location" -ForegroundColor Yellow
 Write-Host "Stage       : $Stage$(if ($WhatIfPreference) { '  [WHATIF -- no changes will be made]' })" -ForegroundColor Yellow
 
 # --- Preflight (always runs) ------------------------------------------------
@@ -326,28 +325,17 @@ if ($Stage -in @("all", "apps")) {
     Invoke-Gh @("variable", "set", "AZURE_RESOURCE_GROUP", "--repo", $GitHubRepo, "--body", $ResourceGroup)
     Invoke-Gh @("variable", "set", "CONTAINER_APP_NAME", "--repo", $GitHubRepo, "--body", $ContainerAppName)
 
-    # NOTE: Azure Static Web Apps has historically only been creatable in a
-    # limited region set (e.g. westus2, centralus, eastus2, westeurope,
-    # eastasia) -- $Location (southcentralus) may NOT be valid here, hence
-    # $SwaLocation defaults separately to centralus. SWA content is served
-    # globally via Azure's CDN regardless of this "location" (mostly a
-    # metadata/build-region concept), so this should be safe -- but this is
-    # UNVERIFIED from the environment this script was written in (no live
-    # Azure docs access at the time). Confirm against current
-    # `az staticwebapp create --help` / Azure docs before relying on it, and
-    # override with -SwaLocation if it's rejected.
-    Write-Step "[apps] Static Web App -> $StaticWebAppName ($SwaLocation)"
+    # centralus is a verified-supported Azure Static Web Apps region (unlike
+    # southcentralus, which the environment/region wasn't confirmed for) --
+    # everything in this script, including the SWA, now deploys to the same
+    # $Location.
+    Write-Step "[apps] Static Web App -> $StaticWebAppName ($Location)"
     $existingSwa = az staticwebapp show --name $StaticWebAppName --resource-group $ResourceGroup --query name -o tsv 2>$null
     if ($existingSwa) {
         Write-Skip $StaticWebAppName
     } else {
-        try {
-            Invoke-Az (@("staticwebapp", "create", "--name", $StaticWebAppName, "--resource-group", $ResourceGroup,
-                    "--location", $SwaLocation, "--sku", "Free", "--tags") + $CommonTags)
-        } catch {
-            Write-Err "Static Web App creation failed -- likely an unsupported -SwaLocation ('$SwaLocation'). Try centralus, eastus2, westus2, westeurope, or eastasia."
-            throw
-        }
+        Invoke-Az (@("staticwebapp", "create", "--name", $StaticWebAppName, "--resource-group", $ResourceGroup,
+                "--location", $Location, "--sku", "Free", "--tags") + $CommonTags)
         Write-OK "Created: $StaticWebAppName"
     }
 

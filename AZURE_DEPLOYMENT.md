@@ -84,7 +84,7 @@ az extension add --name containerapp --upgrade
 ### 1. Resource group
 
 ```bash
-az group create --name rg-ledgeos-demo --location southcentralus
+az group create --name rg-ledgeos-demo --location centralus
 ```
 
 ### 2. Log Analytics workspace + Container Apps environment
@@ -92,7 +92,7 @@ az group create --name rg-ledgeos-demo --location southcentralus
 ```bash
 az monitor log-analytics workspace create \
   --workspace-name law-ledgeos-demo --resource-group rg-ledgeos-demo \
-  --location southcentralus --sku PerGB2018 --retention-time 30
+  --location centralus --sku PerGB2018 --retention-time 30
 
 LAW_ID=$(az monitor log-analytics workspace show --workspace-name law-ledgeos-demo \
   --resource-group rg-ledgeos-demo --query customerId -o tsv)
@@ -100,7 +100,7 @@ LAW_KEY=$(az monitor log-analytics workspace get-shared-keys --workspace-name la
   --resource-group rg-ledgeos-demo --query primarySharedKey -o tsv)
 
 az containerapp env create --name cae-ledgeos-demo \
-  --resource-group rg-ledgeos-demo --location southcentralus \
+  --resource-group rg-ledgeos-demo --location centralus \
   --logs-workspace-id "$LAW_ID" --logs-workspace-key "$LAW_KEY"
 ```
 
@@ -166,17 +166,9 @@ Actions -> Variables), matching what you created above:
 
 ## Widget: Azure Static Web Apps
 
-> **Region note (unverified):** Azure Static Web Apps has historically
-> only been creatable in a limited region set (e.g. `westus2`,
-> `centralus`, `eastus2`, `westeurope`, `eastasia`) -- `southcentralus`
-> (used for everything else above) may **not** be a valid `--location`
-> here. SWA content is served globally through Azure's CDN regardless of
-> this "location" (it's mostly a metadata/build-region concept), so using
-> a different, supported region just for this one resource should be
-> safe. This hasn't been confirmed against current Azure docs from the
-> environment this was written in -- verify before relying on it, and try
-> `centralus`/`eastus2`/`westus2`/`westeurope`/`eastasia` if the region
-> you pick is rejected.
+`centralus` is a verified-supported Azure Static Web Apps region, so
+everything -- resource group, ACR, Container Apps environment, and the
+SWA -- deploys to the same region now.
 
 ```bash
 az staticwebapp create \
