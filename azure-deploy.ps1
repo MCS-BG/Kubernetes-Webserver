@@ -121,6 +121,30 @@ function Invoke-Az {
     Assert-LastExitCode "az $($CmdArgs[0]) $($CmdArgs[1])"
 }
 
+# Existence-check wrapper for `az ... show`-style lookups. Plain `2>$null`
+# on a native command isn't reliably silent on Windows PowerShell 5.1 --
+# combined with $ErrorActionPreference = "Stop", an expected "doesn't exist
+# yet" error (e.g. ResourceGroupNotFound) can still surface as a
+# script-terminating NativeCommandError even though it's redirected. Scoping
+# $ErrorActionPreference to SilentlyContinue for just this call, plus a
+# try/catch as a second layer, makes "doesn't exist" reliably resolve to
+# $null instead of crashing the script, on both Windows PowerShell and
+# PowerShell 7.
+function Test-AzShow {
+    param([Parameter(Mandatory)][string[]]$CmdArgs)
+    $previousEap = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    try {
+        $result = & az @CmdArgs 2>$null
+        if ($LASTEXITCODE -ne 0) { return $null }
+        return $result
+    } catch {
+        return $null
+    } finally {
+        $ErrorActionPreference = $previousEap
+    }
+}
+
 function Invoke-Gh {
     param(
         [Parameter(Mandatory)][string[]]$CmdArgs,
@@ -209,7 +233,7 @@ foreach ($provider in @("Microsoft.App", "Microsoft.Web", "Microsoft.ContainerRe
 if ($Stage -in @("all", "infra")) {
 
     Write-Step "[infra] Resource group -> $ResourceGroup"
-    $existingRg = az group show --name $ResourceGroup --query name -o tsv 2>$null
+    $existingRg = Test-AzShow @("group", "show", "--name", $ResourceGroup, "--query", "name", "-o", "tsv")
     if ($existingRg) {
         Write-Skip $ResourceGroup
     } else {
@@ -218,7 +242,7 @@ if ($Stage -in @("all", "infra")) {
     }
 
     Write-Step "[infra] Log Analytics workspace -> $LogAnalytics"
-    $existingLaw = az monitor log-analytics workspace show --workspace-name $LogAnalytics --resource-group $ResourceGroup --query name -o tsv 2>$null
+    $existingLaw = Test-AzShow @("monitor", "log-analytics", "workspace", "show", "--workspace-name", $LogAnalytics, "--resource-group", $ResourceGroup, "--query", "name", "-o", "tsv")
     if ($existingLaw) {
         Write-Skip $LogAnalytics
     } else {
@@ -230,7 +254,7 @@ if ($Stage -in @("all", "infra")) {
     }
 
     Write-Step "[infra] Container Apps environment -> $ContainerAppEnv"
-    $existingCae = az containerapp env show --name $ContainerAppEnv --resource-group $ResourceGroup --query name -o tsv 2>$null
+    $existingCae = Test-AzShow @("containerapp", "env", "show", "--name", $ContainerAppEnv, "--resource-group", $ResourceGroup, "--query", "name", "-o", "tsv")
     if ($existingCae) {
         Write-Skip $ContainerAppEnv
     } else {
@@ -244,7 +268,7 @@ if ($Stage -in @("all", "infra")) {
     }
 
     Write-Step "[infra] Container Registry -> $AcrName"
-    $existingAcr = az acr show --name $AcrName --resource-group $ResourceGroup --query name -o tsv 2>$null
+    $existingAcr = Test-AzShow @("acr", "show", "--name", $AcrName, "--resource-group", $ResourceGroup, "--query", "name", "-o", "tsv")
     if ($existingAcr) {
         Write-Skip $AcrName
     } else {
@@ -263,8 +287,8 @@ if ($Stage -in @("all", "infra")) {
 if ($Stage -in @("all", "apps")) {
 
     Write-Step "[apps] Confirming infra exists"
-    $acrCheck = az acr show --name $AcrName --resource-group $ResourceGroup --query name -o tsv 2>$null
-    $caeCheck = az containerapp env show --name $ContainerAppEnv --resource-group $ResourceGroup --query name -o tsv 2>$null
+    $acrCheck = Test-AzShow @("acr", "show", "--name", $AcrName, "--resource-group", $ResourceGroup, "--query", "name", "-o", "tsv")
+    $caeCheck = Test-AzShow @("containerapp", "env", "show", "--name", $ContainerAppEnv, "--resource-group", $ResourceGroup, "--query", "name", "-o", "tsv")
     if ((-not $acrCheck -or -not $caeCheck) -and -not $WhatIfPreference) {
         throw "ACR or Container Apps environment not found for '$EnvLabel' -- run with -Stage infra (or -Stage all) first."
     }
@@ -274,7 +298,7 @@ if ($Stage -in @("all", "apps")) {
     $AcrPassword    = az acr credential show --name $AcrName --resource-group $ResourceGroup --query "passwords[0].value" -o tsv
 
     Write-Step "[apps] Container App -> $ContainerAppName"
-    $existingCa = az containerapp show --name $ContainerAppName --resource-group $ResourceGroup --query name -o tsv 2>$null
+    $existingCa = Test-AzShow @("containerapp", "show", "--name", $ContainerAppName, "--resource-group", $ResourceGroup, "--query", "name", "-o", "tsv")
     if ($existingCa) {
         Write-Skip "$ContainerAppName (image/config updates from here are owned by the CD workflow, not this script)"
     } else {
@@ -302,7 +326,7 @@ if ($Stage -in @("all", "apps")) {
 
     Write-Step "[apps] Service principal for AZURE_CREDENTIALS"
     $SpName     = "$ContainerAppName-cd"
-    $existingSp = az ad sp list --display-name $SpName --query "[0].appId" -o tsv 2>$null
+    $existingSp = Test-AzShow @("ad", "sp", "list", "--display-name", $SpName, "--query", "[0].appId", "-o", "tsv")
     if ($existingSp) {
         Write-Skip $SpName
         Write-Warn "An existing service principal's secret can't be re-retrieved -- run 'az ad sp delete --id $existingSp' and re-run this script if AZURE_CREDENTIALS needs refreshing."
@@ -330,7 +354,7 @@ if ($Stage -in @("all", "apps")) {
     # everything in this script, including the SWA, now deploys to the same
     # $Location.
     Write-Step "[apps] Static Web App -> $StaticWebAppName ($Location)"
-    $existingSwa = az staticwebapp show --name $StaticWebAppName --resource-group $ResourceGroup --query name -o tsv 2>$null
+    $existingSwa = Test-AzShow @("staticwebapp", "show", "--name", $StaticWebAppName, "--resource-group", $ResourceGroup, "--query", "name", "-o", "tsv")
     if ($existingSwa) {
         Write-Skip $StaticWebAppName
     } else {
