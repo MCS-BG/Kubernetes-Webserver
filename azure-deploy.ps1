@@ -47,7 +47,10 @@
     Azure subscription name or GUID. Defaults to "atxclouddev".
 
 .PARAMETER TenantId
-    Optional Azure AD tenant GUID, passed to `az login --tenant` when set.
+    Azure AD tenant GUID, passed to `az login --tenant`. Defaults to the
+    "Blackbeard Technologies" tenant that owns the atxclouddev
+    subscription. Pass an empty string (-TenantId "") to fall back to
+    `az login`'s normal default-tenant behavior instead.
 
 .EXAMPLE
     .\azure-deploy.ps1 -WhatIf                    # dry-run, demo environment
@@ -65,7 +68,7 @@ param(
     [string]$Stage          = "all",
     [switch]$SkipLogin,
     [string]$SubscriptionId = "atxclouddev",
-    [string]$TenantId,
+    [string]$TenantId       = "4c12a2f7-4bd5-4073-9cb9-3576e959c063",
     [string]$Location       = "southcentralus",
     [string]$SwaLocation    = "centralus",
     [string]$AppName        = "ledgeos",
