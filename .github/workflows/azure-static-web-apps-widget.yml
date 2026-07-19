@@ -1,0 +1,74 @@
+name: Azure Static Web Apps CI/CD (chat widget)
+
+# Deploys only web/ (the static chat widget) to Azure Static Web Apps.
+# The FastAPI backend is a separate deployment -- see
+# azure-container-apps-backend.yml and AZURE_DEPLOYMENT.md.
+#
+# Setup required before this workflow can run (see AZURE_DEPLOYMENT.md):
+#   1. Create an Azure Static Web App resource pointed at this repo.
+#   2. Add its deployment token as the repo secret named below.
+#   3. Edit web/config.js to point API_BASE_URL at the deployed backend.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "web/**"
+      - ".github/workflows/azure-static-web-apps-widget.yml"
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - main
+    paths:
+      - "web/**"
+  workflow_dispatch: {}
+
+jobs:
+  build_and_deploy_job:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: Build and Deploy Job
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OIDC Client from Core Package
+        run: npm install @actions/core@1.6.0 @actions/http-client
+
+      - name: Get Id Token
+        uses: actions/github-script@v7
+        id: idtoken
+        with:
+          script: |
+            const core = require('@actions/core')
+            return await core.getIDToken()
+          result-encoding: string
+
+      - name: Build And Deploy
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_FINANCE_WIDGET }}
+          action: "upload"
+          ###### Repository/Build Configurations ######
+          app_location: "/web" # the widget lives in web/, not the repo root
+          api_location: "" # no Azure Functions API -- the backend is deployed separately
+          output_location: "" # pure static files, no build step
+          skip_app_build: true
+          github_id_token: ${{ steps.idtoken.outputs.result }}
+          ###### End of Repository/Build Configurations ######
+
+  close_pull_request_job:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    name: Close Pull Request Job
+    steps:
+      - name: Close Pull Request
+        id: closepullrequest
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_FINANCE_WIDGET }}
+          action: "close"
