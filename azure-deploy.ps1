@@ -257,9 +257,17 @@ if ($Stage -in @("all", "infra")) {
     $existingCae = Test-AzShow @("containerapp", "env", "show", "--name", $ContainerAppEnv, "--resource-group", $ResourceGroup, "--query", "name", "-o", "tsv")
     if ($existingCae) {
         Write-Skip $ContainerAppEnv
+    } elseif ($WhatIfPreference) {
+        # On a from-scratch dry run the Log Analytics workspace doesn't
+        # actually exist yet, so fetching its real keys would fail --
+        # print the intent instead of touching az at all.
+        Write-Host "  [WhatIf] az containerapp env create --name $ContainerAppEnv --resource-group $ResourceGroup --location $Location --logs-workspace-id <law-customer-id> --logs-workspace-key <law-shared-key> --tags $($CommonTags -join ' ')" -ForegroundColor DarkYellow
+        Write-OK "Created: $ContainerAppEnv"
     } else {
         $LawId  = az monitor log-analytics workspace show --workspace-name $LogAnalytics --resource-group $ResourceGroup --query customerId -o tsv
+        Assert-LastExitCode "az monitor log-analytics workspace show (customerId)"
         $LawKey = az monitor log-analytics workspace get-shared-keys --workspace-name $LogAnalytics --resource-group $ResourceGroup --query primarySharedKey -o tsv
+        Assert-LastExitCode "az monitor log-analytics workspace get-shared-keys"
         Invoke-Az (@("containerapp", "env", "create",
                 "--name", $ContainerAppEnv, "--resource-group", $ResourceGroup, "--location", $Location,
                 "--logs-workspace-id", $LawId, "--logs-workspace-key", $LawKey,
@@ -289,13 +297,24 @@ if ($Stage -in @("all", "apps")) {
     Write-Step "[apps] Confirming infra exists"
     $acrCheck = Test-AzShow @("acr", "show", "--name", $AcrName, "--resource-group", $ResourceGroup, "--query", "name", "-o", "tsv")
     $caeCheck = Test-AzShow @("containerapp", "env", "show", "--name", $ContainerAppEnv, "--resource-group", $ResourceGroup, "--query", "name", "-o", "tsv")
-    if ((-not $acrCheck -or -not $caeCheck) -and -not $WhatIfPreference) {
-        throw "ACR or Container Apps environment not found for '$EnvLabel' -- run with -Stage infra (or -Stage all) first."
+    if (-not $acrCheck -or -not $caeCheck) {
+        if ($WhatIfPreference) {
+            Write-Warn "ACR or Container Apps environment doesn't exist yet -- in a real run, -Stage infra would need to complete first. Continuing WhatIf with placeholder values."
+        } else {
+            throw "ACR or Container Apps environment not found for '$EnvLabel' -- run with -Stage infra (or -Stage all) first."
+        }
     }
 
-    $AcrLoginServer = az acr show --name $AcrName --resource-group $ResourceGroup --query loginServer -o tsv
-    $AcrUsername    = az acr credential show --name $AcrName --resource-group $ResourceGroup --query username -o tsv
-    $AcrPassword    = az acr credential show --name $AcrName --resource-group $ResourceGroup --query "passwords[0].value" -o tsv
+    if ($acrCheck) {
+        $AcrLoginServer = az acr show --name $AcrName --resource-group $ResourceGroup --query loginServer -o tsv
+        $AcrUsername    = az acr credential show --name $AcrName --resource-group $ResourceGroup --query username -o tsv
+        $AcrPassword    = az acr credential show --name $AcrName --resource-group $ResourceGroup --query "passwords[0].value" -o tsv
+    } else {
+        # WhatIf-only: the ACR doesn't exist yet, so there's nothing real to fetch.
+        $AcrLoginServer = "$AcrName.azurecr.io"
+        $AcrUsername    = "<acr-username>"
+        $AcrPassword    = "<acr-password>"
+    }
 
     Write-Step "[apps] Container App -> $ContainerAppName"
     $existingCa = Test-AzShow @("containerapp", "show", "--name", $ContainerAppName, "--resource-group", $ResourceGroup, "--query", "name", "-o", "tsv")
