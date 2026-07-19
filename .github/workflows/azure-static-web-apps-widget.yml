@@ -35,16 +35,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install OIDC Client from Core Package
-        run: npm install @actions/core@1.6.0 @actions/http-client
-
       - name: Get Id Token
         uses: actions/github-script@v7
         id: idtoken
         with:
-          script: |
-            const core = require('@actions/core')
-            return await core.getIDToken()
+          # actions/github-script already injects `core` into the script's
+          # scope -- requiring @actions/core and redeclaring it as `const
+          # core` collides with that and throws "Identifier 'core' has
+          # already been declared". Just use the one it already provides.
+          script: return await core.getIDToken()
           result-encoding: string
 
       - name: Build And Deploy
